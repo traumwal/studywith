@@ -32,8 +32,16 @@ Firebase を設定していない場合は **ローカルモード** で起動�
 ログインはタブごとなので、別のタブで別の名前を入力して入ると、1 台で「友達のいる部屋」を試せます。
 
 ```bash
-npm test          # 集計・時間計算などのテスト
-npm run build     # 型チェック + 本番ビルド（dist/）
+npm test             # 集計・時間計算などのテスト
+npm run test:rules   # Firestore セキュリティルールのテスト（エミュレーターを自動で起動。Java が必要）
+npm run build        # 型チェック + 本番ビルド（dist/）
+```
+
+### Firebase エミュレーターで動かす（本番のデータを汚さずに試す）
+
+```bash
+npm run emulators      # ターミナル1：Auth と Firestore のエミュレーターを起動
+npm run dev:emulator   # ターミナル2：エミュレーターにつないでアプリを起動
 ```
 
 ## Firebase で友達と共有する

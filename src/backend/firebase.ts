@@ -1,6 +1,7 @@
 import { initializeApp, type FirebaseOptions } from 'firebase/app';
 import {
   GoogleAuthProvider,
+  connectAuthEmulator,
   getAuth,
   onAuthStateChanged,
   signInAnonymously,
@@ -12,6 +13,7 @@ import {
   arrayRemove,
   arrayUnion,
   collection,
+  connectFirestoreEmulator,
   deleteDoc,
   doc,
   getDoc,
@@ -22,6 +24,7 @@ import {
   query,
   runTransaction,
   setDoc,
+  updateDoc,
   where,
   addDoc,
   type Firestore,
@@ -50,6 +53,11 @@ export class FirebaseBackend implements Backend {
     const app = initializeApp(config);
     this.auth = getAuth(app);
     this.db = getFirestore(app);
+    // npm run emulators で起動したローカルの Firebase につなぐ（開発・テスト用）
+    if (import.meta.env.VITE_FIREBASE_EMULATOR === 'true') {
+      connectAuthEmulator(this.auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+      connectFirestoreEmulator(this.db, '127.0.0.1', 8080);
+    }
   }
 
   onAuthChange(cb: (user: AuthUser | null) => void): Unsubscribe {
@@ -83,11 +91,11 @@ export class FirebaseBackend implements Backend {
       const id = generateRoomCode();
       const ref = doc(this.db, 'rooms', id);
       const created = await runTransaction(this.db, async (tx) => {
-        const snap = await tx.get(ref).catch(() => null);
-        if (snap?.exists()) return false;
+        const snap = await tx.get(ref);
+        if (snap.exists()) return false;
         tx.set(ref, { name, createdAt: Date.now(), memberIds: [uid] });
         return true;
-      }).catch(() => false);
+      });
       if (created) return id;
     }
     throw new Error('部屋を作成できませんでした。もう一度お試しください');
@@ -96,17 +104,22 @@ export class FirebaseBackend implements Backend {
   async joinRoom(uid: string, code: string) {
     const id = normalizeRoomCode(code);
     if (!id) throw new Error('招待コードを入力してください');
-    try {
-      // メンバー以外は部屋を読めないので、読まずに自分を追加する（ルール側で検証）
-      await setDoc(doc(this.db, 'rooms', id), { memberIds: arrayUnion(uid) }, { merge: true });
-    } catch {
-      throw new Error(`その招待コードの部屋が見つからないか、満員です（最大${MAX_ROOM_MEMBERS}人）`);
-    }
+    const ref = doc(this.db, 'rooms', id);
+    // トランザクションで「部屋がある・満員でない」を確かめてから自分を追加する
+    // （ルール側でも「自分だけを追加」「最大人数」を検証している）
+    await runTransaction(this.db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) throw new Error('その招待コードの部屋が見つかりません');
+      const members = (snap.data().memberIds ?? []) as string[];
+      if (members.includes(uid)) return;
+      if (members.length >= MAX_ROOM_MEMBERS) throw new Error(`この部屋は満員です（最大${MAX_ROOM_MEMBERS}人）`);
+      tx.update(ref, { memberIds: arrayUnion(uid) });
+    });
   }
 
   async leaveRoom(uid: string, roomId: string) {
     await deleteDoc(doc(this.db, 'rooms', roomId, 'presence', uid)).catch(() => {});
-    await setDoc(doc(this.db, 'rooms', roomId), { memberIds: arrayRemove(uid) }, { merge: true });
+    await updateDoc(doc(this.db, 'rooms', roomId), { memberIds: arrayRemove(uid) });
   }
 
   watchMyRooms(uid: string, cb: (rooms: Room[]) => void): Unsubscribe {

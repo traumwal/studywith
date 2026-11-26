@@ -25,8 +25,10 @@ service cloud.firestore {
         return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds']);
       }
 
-      // 存在しない部屋の確認（部屋作成時の重複チェック）も許可する
-      allow get: if signedIn() && (resource == null || request.auth.uid in members());
+      // 招待コード（= roomId）を知っている人は、参加前に部屋の有無・人数を確認できる。
+      // コードを知っていれば参加できるのと同じなので、これで守りが弱くなることはない。
+      // 一覧の取得（list）はメンバーだけ。
+      allow get: if signedIn();
       allow list: if signedIn() && request.auth.uid in members();
 
       allow create: if signedIn()

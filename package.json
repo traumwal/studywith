@@ -7,7 +7,10 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "emulators": "firebase emulators:start --only auth,firestore --project studywith-9090d",
+    "dev:emulator": "VITE_FIREBASE_EMULATOR=true vite",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-rules-test \"vitest run -c vitest.rules.config.ts\""
   },
   "repository": {
     "type": "git",
@@ -23,9 +26,11 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
     "@types/react": "^18.3.32",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
+    "firebase-tools": "^14.27.0",
     "typescript": "^5.9.3",
     "vite": "^6.4.6",
     "vitest": "^3.2.7"
