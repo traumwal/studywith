@@ -28,7 +28,7 @@ npm install
 npm run dev
 ```
 
-Firebase を設定していない場合は **ローカルモード** で起動します。データはそのブラウザの localStorage だけに保存されます。
+`.env` の Firebase 設定を空にすると **ローカルモード** で起動します。データはそのブラウザの localStorage だけに保存されます。
 ログインはタブごとなので、別のタブで別の名前を入力して入ると、1 台で「友達のいる部屋」を試せます。
 
 ```bash
@@ -49,7 +49,7 @@ npm run dev:emulator   # ターミナル2：エミュレーターにつないで
 1. [Firebase コンソール](https://console.firebase.google.com/) でプロジェクトを作成し、Web アプリを追加
 2. Authentication で **Google** と **匿名** のログインを有効にする
 3. Firestore Database を作成する
-4. `.env.example` を `.env.local` にコピーし、Web アプリの設定値を入れる
+4. `.env` に Web アプリの設定値を入れる（このリポジトリには studywith-9090d の値が入っています。公開前提の値なので Git に入れて問題ありません）
 5. セキュリティルールとホスティングをデプロイ
 
 ```bash
