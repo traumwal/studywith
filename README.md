@@ -70,13 +70,13 @@ Firestore はコレクションとドキュメントが交互になるため、�
 rooms/{roomId}                      name, createdAt, memberIds[]      ※ roomId = 招待コード
 rooms/{roomId}/presence/{userId}    status, category, startedAt, accumulatedSec, updatedAt,
                                     displayName, avatar               ※ 部屋の描画に必要な分だけ複製
-users/{userId}                      displayName, avatar{hair, hairColor, outfitColor, skin}, categories[]
+users/{userId}                      displayName, avatar{hair, hairColor, outfitColor, skin, desk}, categories[]
 users/{userId}/sessions/{id}        category, startedAt, endedAt, durationSec, source: "manual" | "camera"
 ```
 
 - 時刻はすべてミリ秒の数値
 - `accumulatedSec`：休憩をはさんだときの、それまでの勉強秒数（相手側で経過時間を計算するため）
-- ルール（`firestore.rules`）：部屋と在席情報はメンバーだけが読める。参加は「自分を追加」、退出は「自分を削除」だけ許可。勉強記録は本人だけが読み書きできる
+- ルール（`firestore.rules`）：部屋と在席情報はメンバーだけが読める。参加は「自分を追加」（最大 2 人）、退出は「自分を削除」だけ許可。勉強記録は本人だけが読み書きできる
 
 ## 軽さのための工夫（仕様 7.）
 
@@ -98,7 +98,7 @@ src/
   lib/                      時間・集計・色・招待コードの小さな関数
 ```
 
-自作の絵に差し替えるときは `src/room/draw.ts` の `drawSeat` / `drawRoom` を書き換えれば、他は変えずに済みます。
+自作の絵に差し替えるときは `src/room/draw.ts` の `drawRoom` / `drawSeat` / `drawLighting` / `drawSeatLabels` を書き換えれば、他は変えずに済みます。部屋のデザインの詳細は [SPEC.md](./SPEC.md) の 4 章にあります。
 
 ## 次のバージョンでやること
 
