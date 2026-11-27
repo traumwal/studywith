@@ -1,6 +1,6 @@
-import { MAX_ROOM_MEMBERS } from '../constants';
+import { MAX_ROOM_MEMBERS, TIMELINE_KEEP_MS } from '../constants';
 import { generateRoomCode, normalizeRoomCode } from '../lib/code';
-import type { AuthUser, Presence, Room, StudySession, Unsubscribe, UserProfile } from '../types';
+import type { AuthUser, Presence, Room, RoomMessage, StudySession, TimelineEntry, Unsubscribe, UserProfile } from '../types';
 import type { Backend, LocalAccount, SignInMethod } from './types';
 
 /**
@@ -16,8 +16,13 @@ interface Db {
   accounts: LocalAccount[];
   rooms: Record<string, Room>;
   presence: Record<string, Record<string, Presence>>;
+  messages: Record<string, RoomMessage[]>;
+  timeline: Record<string, Record<string, TimelineEntry>>;
   sessions: Record<string, StudySession[]>;
 }
+
+/** ローカルモードで部屋ごとに残すメッセージの数（localStorage を使い切らないように） */
+const LOCAL_MESSAGE_KEEP = 200;
 
 type Key = keyof Db;
 
@@ -159,10 +164,56 @@ export class LocalBackend implements Backend {
     this.write('presence', all);
   }
 
+  async sendMessage(roomId: string, message: Omit<RoomMessage, 'id'>) {
+    const all = read('messages', {});
+    all[roomId] = [...(all[roomId] ?? []), { ...message, id: crypto.randomUUID() }].slice(-LOCAL_MESSAGE_KEEP);
+    this.write('messages', all);
+  }
+
+  watchMessages(roomId: string, since: number, cb: (list: RoomMessage[]) => void): Unsubscribe {
+    return this.subscribe('messages', () =>
+      cb((read('messages', {})[roomId] ?? []).filter((m) => m.createdAt > since).sort((a, b) => a.createdAt - b.createdAt)),
+    );
+  }
+
+  async listMessages(roomId: string, limit: number) {
+    return [...(read('messages', {})[roomId] ?? [])].sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);
+  }
+
   async addSession(uid: string, session: Omit<StudySession, 'id'>) {
     const all = read('sessions', {});
-    all[uid] = [...(all[uid] ?? []), { ...session, id: crypto.randomUUID() }];
+    const id = crypto.randomUUID();
+    all[uid] = [...(all[uid] ?? []), { ...session, id }];
     this.write('sessions', all);
+    return id;
+  }
+
+  /** 2 日より前のタイムラインを捨てる（Firebase の TTL の代わり） */
+  private freshTimeline() {
+    const keepAfter = Date.now() - TIMELINE_KEEP_MS;
+    const all = read('timeline', {});
+    for (const room of Object.values(all)) {
+      for (const [id, e] of Object.entries(room)) if (e.endedAt <= keepAfter) delete room[id];
+    }
+    return all;
+  }
+
+  async addTimeline(roomId: string, entry: TimelineEntry) {
+    const all = this.freshTimeline();
+    all[roomId] = { ...(all[roomId] ?? {}), [entry.id]: entry };
+    this.write('timeline', all);
+  }
+
+  async deleteTimeline(roomId: string, id: string) {
+    const all = this.freshTimeline();
+    if (all[roomId]) delete all[roomId][id];
+    this.write('timeline', all);
+  }
+
+  watchTimeline(roomId: string, since: number, cb: (list: TimelineEntry[]) => void): Unsubscribe {
+    return this.subscribe('timeline', () =>
+      cb(Object.values(this.freshTimeline()[roomId] ?? {}).filter((e) => e.endedAt > since)),
+    );
   }
 
   async deleteSession(uid: string, sessionId: string) {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { HAIR_COLORS, HAIR_STYLES, OUTFIT_COLORS, SKIN_COLORS } from '../constants';
+import { DESK_SETS, DEFAULT_AVATAR, HAIR_COLORS, HAIR_STYLES, OUTFIT_COLORS, SKIN_COLORS } from '../constants';
 import type { Avatar, UserProfile } from '../types';
 import { AvatarPreview } from './AvatarPreview';
 
@@ -78,6 +78,31 @@ export function ProfileEditor({ initial, submitLabel, onSubmit, onCancel }: Prop
           <Swatches label="髪の色" colors={HAIR_COLORS} value={avatar.hairColor} onChange={(c) => set({ hairColor: c })} />
           <Swatches label="服の色" colors={OUTFIT_COLORS} value={avatar.outfitColor} onChange={(c) => set({ outfitColor: c })} />
           <Swatches label="肌の色" colors={SKIN_COLORS} value={avatar.skin} onChange={(c) => set({ skin: c })} />
+          <div className="field">
+            <span className="label">机と椅子</span>
+            <div className="desk-sets" role="radiogroup" aria-label="机と椅子">
+              {DESK_SETS.map((d) => {
+                const selected = (avatar.desk ?? DEFAULT_AVATAR.desk) === d.id;
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    className={`desk-set ${selected ? 'selected' : ''}`}
+                    onClick={() => set({ desk: d.id })}
+                  >
+                    <span className="desk-set-icon" aria-hidden>
+                      <i style={{ background: d.top }} />
+                      <i style={{ background: d.chair }} />
+                      <i style={{ background: d.frame }} />
+                    </span>
+                    {d.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
       <div className="row end">

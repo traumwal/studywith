@@ -27,11 +27,13 @@ import {
   updateDoc,
   where,
   addDoc,
+  limit as limitTo,
+  Timestamp,
   type Firestore,
 } from 'firebase/firestore';
-import { MAX_ROOM_MEMBERS } from '../constants';
+import { MAX_ROOM_MEMBERS, TIMELINE_KEEP_MS } from '../constants';
 import { generateRoomCode, normalizeRoomCode } from '../lib/code';
-import type { AuthUser, Presence, Room, StudySession, Unsubscribe, UserProfile } from '../types';
+import type { AuthUser, Presence, Room, RoomMessage, StudySession, TimelineEntry, Unsubscribe, UserProfile } from '../types';
 import type { Backend, SignInMethod } from './types';
 
 /**
@@ -40,7 +42,9 @@ import type { Backend, SignInMethod } from './types';
  *
  * rooms/{roomId}                       name, createdAt, memberIds[]   ※ roomId = 招待コード
  * rooms/{roomId}/presence/{uid}        status, category, startedAt, accumulatedSec, updatedAt, displayName, avatar
- * users/{uid}                          displayName, avatar, categories
+ * rooms/{roomId}/messages/{id}         senderId, kind, text, createdAt
+ * rooms/{roomId}/timeline/{id}         userId, category, startedAt, endedAt, expireAt(Timestamp・TTL)
+ * users/{uid}                          displayName, avatar, categories, stamps, tone
  * users/{uid}/sessions/{sessionId}     category, startedAt, endedAt, durationSec, source
  */
 export class FirebaseBackend implements Backend {
@@ -144,8 +148,61 @@ export class FirebaseBackend implements Backend {
     await setDoc(doc(this.db, 'rooms', roomId, 'presence', presence.uid), presence);
   }
 
+  async sendMessage(roomId: string, message: Omit<RoomMessage, 'id'>) {
+    await addDoc(collection(this.db, 'rooms', roomId, 'messages'), message);
+  }
+
+  watchMessages(roomId: string, since: number, cb: (list: RoomMessage[]) => void): Unsubscribe {
+    const q = query(collection(this.db, 'rooms', roomId, 'messages'), where('createdAt', '>', since), orderBy('createdAt'));
+    return onSnapshot(
+      q,
+      (snap) => cb(snap.docs.map((d) => ({ ...(d.data() as Omit<RoomMessage, 'id'>), id: d.id }))),
+      (e) => console.warn('messages', e),
+    );
+  }
+
+  async listMessages(roomId: string, limit: number) {
+    const q = query(collection(this.db, 'rooms', roomId, 'messages'), orderBy('createdAt', 'desc'), limitTo(limit));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ ...(d.data() as Omit<RoomMessage, 'id'>), id: d.id }));
+  }
+
   async addSession(uid: string, session: Omit<StudySession, 'id'>) {
-    await addDoc(collection(this.db, 'users', uid, 'sessions'), session);
+    const ref = await addDoc(collection(this.db, 'users', uid, 'sessions'), session);
+    return ref.id;
+  }
+
+  async addTimeline(roomId: string, entry: TimelineEntry) {
+    const { id, ...data } = entry;
+    // expireAt は TTL のため Timestamp 型にする（ここだけ数値ではない）
+    await setDoc(doc(this.db, 'rooms', roomId, 'timeline', id), {
+      ...data,
+      expireAt: Timestamp.fromMillis(entry.endedAt + TIMELINE_KEEP_MS),
+    });
+  }
+
+  async deleteTimeline(roomId: string, id: string) {
+    await deleteDoc(doc(this.db, 'rooms', roomId, 'timeline', id));
+  }
+
+  watchTimeline(roomId: string, since: number, cb: (list: TimelineEntry[]) => void): Unsubscribe {
+    const q = query(collection(this.db, 'rooms', roomId, 'timeline'), where('endedAt', '>', since));
+    return onSnapshot(
+      q,
+      (snap) => {
+        // TTL は期限を過ぎてから実際に消えるまで最大 24 時間ほどかかるので、こちらでも捨てる
+        const keepAfter = Date.now() - TIMELINE_KEEP_MS;
+        cb(
+          snap.docs
+            .map((d) => {
+              const { userId, category, startedAt, endedAt } = d.data() as Omit<TimelineEntry, 'id'>;
+              return { id: d.id, userId, category, startedAt, endedAt };
+            })
+            .filter((e) => e.endedAt > keepAfter),
+        );
+      },
+      (e) => console.warn('timeline', e),
+    );
   }
 
   async deleteSession(uid: string, sessionId: string) {

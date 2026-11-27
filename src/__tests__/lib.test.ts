@@ -3,7 +3,7 @@ import { totalsByCategory, totalsByDay, totalSec } from '../lib/stats';
 import { addDays, formatClock, formatDuration, startOfWeek } from '../lib/time';
 import { normalizeRoomCode, generateRoomCode } from '../lib/code';
 import { categoryColor } from '../lib/color';
-import { effectiveStatus, roomSize, studiedSec } from '../room/draw';
+import { deskSetOf, effectiveStatus, roomSize, seatPosition, studiedSec } from '../room/draw';
 import { elapsedSec } from '../hooks/useStudyTimer';
 import { DEFAULT_AVATAR, PRESENCE_STALE_MS } from '../constants';
 import type { Presence, StudySession } from '../types';
@@ -103,10 +103,20 @@ describe('presence', () => {
     expect(elapsedSec({ category: 'x', startedAt: 0, accumulatedSec: 60, segmentStartedAt: null }, now)).toBe(60);
   });
 
-  it('room layout grows in rows', () => {
-    expect(roomSize(1, 4)).toMatchObject({ cols: 2, rows: 1 });
-    expect(roomSize(4, 4)).toMatchObject({ cols: 4, rows: 1 });
-    expect(roomSize(6, 4)).toMatchObject({ cols: 4, rows: 2 });
-    expect(roomSize(6, 2)).toMatchObject({ cols: 2, rows: 3 });
+  it('desk set falls back to the default for old avatars', () => {
+    expect(deskSetOf({ ...DEFAULT_AVATAR, desk: undefined }).id).toBe('ash');
+    expect(deskSetOf({ ...DEFAULT_AVATAR, desk: 'walnut' }).id).toBe('walnut');
+    expect(deskSetOf(undefined).id).toBe('ash');
+  });
+
+  it('room layout has at least two seats side by side', () => {
+    // 席は最低 2 つ。2 人までは同じ広さで、増えたら横に広がる
+    expect(roomSize(1)).toEqual(roomSize(2));
+    expect(roomSize(3).width).toBeGreaterThan(roomSize(2).width);
+    const { width } = roomSize(2);
+    const a = seatPosition(0, 2, width);
+    const b = seatPosition(1, 2, width);
+    expect(a.deskY).toBe(b.deskY);
+    expect((a.cx + b.cx) / 2).toBe(width / 2);
   });
 });

@@ -1,11 +1,32 @@
 export type HairStyle = 'short' | 'long' | 'bun' | 'spiky';
 
+export type DeskSetId = 'ash' | 'walnut' | 'white' | 'oak' | 'mortar';
+
 export interface Avatar {
   hair: HairStyle;
   hairColor: string;
   outfitColor: string;
   skin: string;
+  /** 机と椅子の色の組み合わせ（古いデータには無いので省略可。無ければ既定の組み合わせ） */
+  desk?: DeskSetId;
 }
+
+/** 机（天板・フレーム）と椅子をセットにした色の組み合わせ */
+export interface DeskSet {
+  id: DeskSetId;
+  label: string;
+  /** 天板 */
+  top: string;
+  /** 脚などのスチールフレーム */
+  frame: string;
+  /** 椅子（ライトのシェードも同じ色） */
+  chair: string;
+  /** ライトのアーム */
+  arm: string;
+}
+
+/** 自動メッセージの口調 */
+export type Tone = 'plain' | 'cat' | 'casual' | 'genki';
 
 export interface UserProfile {
   uid: string;
@@ -13,6 +34,10 @@ export interface UserProfile {
   avatar: Avatar;
   /** 自分が使う分野の一覧（初期値は DEFAULT_CATEGORIES） */
   categories: string[];
+  /** スタンプのマイセット（無ければ DEFAULT_STAMPS） */
+  stamps?: string[];
+  /** 自動メッセージの口調（無ければ 'plain'） */
+  tone?: Tone;
 }
 
 export interface AuthUser {
@@ -51,6 +76,29 @@ export interface StudySession {
   endedAt: number;
   durationSec: number;
   source: 'manual' | 'camera';
+  /** タイムラインにコピーした部屋（削除するときに一緒に消すため） */
+  roomId?: string;
+}
+
+/** rooms/{roomId}/timeline/{id}：タイムライン用の共有コピー（id は元の記録と同じ。2 日で消える） */
+export interface TimelineEntry {
+  id: string;
+  userId: string;
+  category: string;
+  startedAt: number;
+  endedAt: number;
+}
+
+export type MessageKind = 'stamp' | 'auto-start' | 'auto-break' | 'auto-stop';
+
+/** rooms/{roomId}/messages/{id}：部屋の中を流れるスタンプと自動メッセージ */
+export interface RoomMessage {
+  id: string;
+  senderId: string;
+  kind: MessageKind;
+  /** 送った時点の文章（組み立て済み） */
+  text: string;
+  createdAt: number;
 }
 
 export type Unsubscribe = () => void;

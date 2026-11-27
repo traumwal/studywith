@@ -1,4 +1,4 @@
-import type { Avatar, HairStyle } from './types';
+import type { Avatar, DeskSet, HairStyle, Tone } from './types';
 
 export const DEFAULT_CATEGORIES = [
   '学校課題',
@@ -12,8 +12,8 @@ export const DEFAULT_CATEGORIES = [
   'イラスト',
 ];
 
-/** 1部屋の最大人数（仕様では未決定。描画は 4 列 × 2 行まで想定） */
-export const MAX_ROOM_MEMBERS = 8;
+/** 1部屋の最大人数（いまは 2 人用の部屋。変えるときは firestore.rules も合わせる） */
+export const MAX_ROOM_MEMBERS = 2;
 
 /** この時間 presence が更新されなければオフライン扱いにする */
 export const PRESENCE_STALE_MS = 5 * 60 * 1000;
@@ -22,6 +22,63 @@ export const PRESENCE_HEARTBEAT_MS = 60 * 1000;
 
 /** これより短い記録は保存しない（押し間違い対策） */
 export const MIN_SESSION_SEC = 60;
+
+// ───── スタンプ・自動メッセージ・LOG ─────
+
+export const DEFAULT_STAMPS = ['おつかれ', 'がんばれ', '休憩しよ', 'おやすみ'];
+/** マイセットの最大数 */
+export const MAX_STAMPS = 8;
+/** メッセージの最大文字数（firestore.rules と合わせる） */
+export const MAX_MESSAGE_LEN = 40;
+/** 同じ人がスタンプを送れる間隔（アプリ側だけの制限） */
+export const STAMP_COOLDOWN_MS = 3000;
+/** 端末の時計のずれに備えて、部屋を開いた時刻のこれだけ前から受け取る */
+export const MESSAGE_LOOKBACK_MS = 30 * 1000;
+/** LOG に出す件数 */
+export const LOG_LIMIT = 50;
+
+// ───── ポモドーロ ─────
+
+export type PomodoroPresetId = '25-5' | '50-10';
+
+/** 集中と休憩の長さ（分）。every 回目ごとの休憩は長い休憩になる */
+export const POMODORO_PRESETS: { id: PomodoroPresetId; label: string; focusMin: number; breakMin: number; longBreakMin: number; every: number }[] = [
+  { id: '25-5', label: '25分＋5分', focusMin: 25, breakMin: 5, longBreakMin: 15, every: 4 },
+  { id: '50-10', label: '50分＋10分', focusMin: 50, breakMin: 10, longBreakMin: 20, every: 4 },
+];
+/** 閉じている間に切り替わった場合、自動メッセージはこれより新しい切り替えのときだけ流す */
+export const POMODORO_MESSAGE_FRESH_MS = 2 * 60 * 1000;
+
+// ───── カメラの在席判定 ─────
+
+/** 顔検出の間隔（毎フレームは行わない） */
+export const CAMERA_DETECT_INTERVAL_MS = 2000;
+/** 顔がこれだけ見えなければ「離席」にして、タイマーを一時停止する */
+export const CAMERA_AWAY_MS = 3 * 60 * 1000;
+/** 離席のあと、顔がこの回数続けて見えたら戻ったとみなす（一瞬の誤検出で戻らないように） */
+export const CAMERA_RESUME_STREAK = 2;
+/**
+ * 顔とみなす確からしさ。正面の顔はふつう 0.9 以上。模様やポスターの誤検出（0.5〜0.75 程度）を拾わないよう高めにする。
+ * 下を向いて書いている間に下回っても、3 分のうちに 1 回でも見えれば離席にはならない
+ */
+export const CAMERA_MIN_CONFIDENCE = 0.8;
+/** カメラは低い解像度で取得する */
+export const CAMERA_SIZE = { width: 320, height: 240 };
+
+// ───── タイムライン ─────
+
+/** タイムラインの共有コピーを残す期間（Firestore の TTL で消す。firestore.rules と合わせる） */
+export const TIMELINE_KEEP_MS = 2 * 24 * 60 * 60 * 1000;
+/** タイムラインの 1 日の区切り（6 時〜翌 6 時） */
+export const TIMELINE_DAY_START_HOUR = 6;
+
+/** 自動メッセージの口調。{分野} {時間} はその時の分野と勉強時間に置き換わる */
+export const TONES: { id: Tone; label: string; start: string; break: string; stop: string }[] = [
+  { id: 'plain', label: 'ふつう', start: '{分野} 開始', break: 'ちょっと休憩', stop: '{分野} {時間} 終わった' },
+  { id: 'cat', label: 'ねこ', start: '{分野} するにゃ', break: 'ひと休みにゃ', stop: '{分野} {時間} できたにゃ' },
+  { id: 'casual', label: 'ゆるい', start: '{分野}やるか〜', break: 'ちょっと休憩〜', stop: '{分野} {時間} おわり〜' },
+  { id: 'genki', label: '元気', start: '{分野} スタート！', break: '休憩タイム！', stop: '{分野} {時間} やりきった！' },
+];
 
 export const HAIR_STYLES: { id: HairStyle; label: string }[] = [
   { id: 'short', label: 'ショート' },
@@ -34,9 +91,18 @@ export const HAIR_COLORS = ['#2b1d16', '#6b4226', '#c58b4a', '#e8d27a', '#b84a3a
 export const OUTFIT_COLORS = ['#e07a5f', '#3d8bd9', '#58a55c', '#f2cc5b', '#9a6bd1', '#f0f0f0', '#3a3a48'];
 export const SKIN_COLORS = ['#f6d7b8', '#e9b88f', '#c68a5f', '#8d5a3b'];
 
+export const DESK_SETS: DeskSet[] = [
+  { id: 'ash', label: 'アッシュ × 朱', top: '#e2cca2', frame: '#f2ece0', chair: '#f0643a', arm: '#2f5a3e' },
+  { id: 'walnut', label: 'ウォルナット × 深緑', top: '#8a5a3a', frame: '#34343c', chair: '#2f6a4a', arm: '#34343c' },
+  { id: 'white', label: 'ホワイト × コバルト', top: '#f7f5ef', frame: '#b8c0cc', chair: '#2f6fd6', arm: '#3a4a6a' },
+  { id: 'oak', label: 'オーク × マスタード', top: '#d9ab6a', frame: '#f2ece0', chair: '#e0a82a', arm: '#2f5a3e' },
+  { id: 'mortar', label: 'モルタル × ラベンダー', top: '#bdb8ae', frame: '#34343c', chair: '#9a7ad6', arm: '#34343c' },
+];
+
 export const DEFAULT_AVATAR: Avatar = {
   hair: 'short',
   hairColor: HAIR_COLORS[0],
   outfitColor: OUTFIT_COLORS[1],
   skin: SKIN_COLORS[0],
+  desk: DESK_SETS[0].id,
 };

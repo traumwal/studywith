@@ -1,18 +1,22 @@
 import { useEffect, useState } from 'react';
 import type { Backend } from '../backend';
 import { categoryColor } from '../lib/color';
+import { removeSession, saveSession } from '../lib/record';
 import { totalsByCategory, totalsByDay, totalSec } from '../lib/stats';
 import { addDays, formatDate, formatDuration, formatTime, startOfWeek, WEEKDAYS } from '../lib/time';
-import type { StudySession, UserProfile } from '../types';
+import type { Room, StudySession, UserProfile } from '../types';
+import { Timeline } from './Timeline';
 
 interface Props {
   backend: Backend;
   profile: UserProfile;
+  /** 入っている部屋（タイムラインと、手動追加のコピー先） */
+  room: Room | null;
   /** 記録が増えたら変わる値（再読み込み用） */
   version: number;
 }
 
-export function Stats({ backend, profile, version }: Props) {
+export function Stats({ backend, profile, room, version }: Props) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(Date.now()));
   const [sessions, setSessions] = useState<StudySession[] | null>(null);
   const [prevTotal, setPrevTotal] = useState<number | null>(null);
@@ -51,6 +55,8 @@ export function Stats({ backend, profile, version }: Props) {
 
   return (
     <div className="stats">
+      {room && <Timeline backend={backend} room={room} profile={profile} />}
+
       <div className="week-nav">
         <button className="btn ghost" onClick={() => setWeekStart(addDays(weekStart, -7))} aria-label="前の週">
           ◀
@@ -134,7 +140,7 @@ export function Stats({ backend, profile, version }: Props) {
               <AddSessionForm
                 categories={profile.categories}
                 onAdd={async (s) => {
-                  await backend.addSession(profile.uid, s);
+                  await saveSession(backend, profile.uid, room?.id ?? null, s);
                   setShowAdd(false);
                   setWeekStart(startOfWeek(s.startedAt));
                   setReload((n) => n + 1);
@@ -158,7 +164,7 @@ export function Stats({ backend, profile, version }: Props) {
                     title="削除"
                     onClick={async () => {
                       if (!confirm(`${s.category} ${formatDuration(s.durationSec)} の記録を削除しますか？`)) return;
-                      await backend.deleteSession(profile.uid, s.id);
+                      await removeSession(backend, profile.uid, s);
                       setReload((n) => n + 1);
                     }}
                   >
@@ -184,7 +190,7 @@ function AddSessionForm({
   onAdd,
 }: {
   categories: string[];
-  onAdd: (s: Omit<StudySession, 'id'>) => Promise<void>;
+  onAdd: (s: Omit<StudySession, 'id' | 'roomId'>) => Promise<void>;
 }) {
   const [category, setCategory] = useState(categories[0] ?? '');
   const [start, setStart] = useState(() => toLocalInput(Date.now() - 60 * 60 * 1000));

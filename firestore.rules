@@ -20,6 +20,10 @@ service cloud.firestore {
 
     match /rooms/{roomId} {
       function members() { return resource.data.memberIds; }
+      function isMember() {
+        return signedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.memberIds;
+      }
       function newMembers() { return request.resource.data.memberIds; }
       function othersUnchanged() {
         return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds']);
@@ -37,24 +41,61 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 40
         && request.resource.data.createdAt is number;
 
-      // 参加：自分だけを追加（最大8人） / 退出：自分だけを削除
+      // 参加：自分だけを追加（最大2人。src/constants.ts の MAX_ROOM_MEMBERS と合わせる） / 退出：自分だけを削除
       allow update: if signedIn() && othersUnchanged() && (
         (newMembers().hasAll(members())
           && newMembers().removeAll(members()).hasOnly([request.auth.uid])
-          && newMembers().size() <= 8)
+          && newMembers().size() <= 2)
         ||
         (members().hasAll(newMembers())
           && members().removeAll(newMembers()).hasOnly([request.auth.uid]))
       );
 
       match /presence/{uid} {
-        function isMember() {
-          return request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.memberIds;
-        }
-        allow read: if signedIn() && isMember();
+        allow read: if isMember();
         allow create, update: if isMe(uid) && isMember();
         // 退出後でも自分の在席情報は消せるようにする
         allow delete: if isMe(uid);
+      }
+
+      // スタンプ・自動メッセージ。メンバーだけが読み書きでき、送ったものは変更・削除できない
+      match /messages/{messageId} {
+        function validMessage(d) {
+          return d.keys().hasOnly(['senderId', 'kind', 'text', 'createdAt'])
+            && d.senderId == request.auth.uid
+            && d.kind in ['stamp', 'auto-start', 'auto-break', 'auto-stop']
+            && d.text is string
+            && d.text.size() > 0
+            && d.text.size() <= 40                                   // MAX_MESSAGE_LEN
+            && d.createdAt is number
+            && d.createdAt > request.time.toMillis() - 60 * 1000     // 端末の時計のずれは ±1 分まで
+            && d.createdAt < request.time.toMillis() + 60 * 1000;
+        }
+        allow read: if isMember();
+        allow create: if isMember() && validMessage(request.resource.data);
+        allow update, delete: if false;
+      }
+
+      // タイムライン用の共有コピー（分野と開始・終了時刻だけ）。2 日後に TTL で消える
+      match /timeline/{entryId} {
+        function validEntry(d) {
+          return d.keys().hasOnly(['userId', 'category', 'startedAt', 'endedAt', 'expireAt'])
+            && d.userId == request.auth.uid
+            && d.category is string
+            && d.category.size() > 0
+            && d.category.size() <= 30
+            && d.startedAt is number
+            && d.endedAt is number
+            && d.endedAt > d.startedAt
+            && d.endedAt < request.time.toMillis() + 60 * 1000
+            && d.expireAt is timestamp
+            && d.expireAt.toMillis() == d.endedAt + 2 * 24 * 60 * 60 * 1000;   // TIMELINE_KEEP_MS
+        }
+        allow read: if isMember();
+        allow create: if isMember() && validEntry(request.resource.data);
+        allow update: if false;
+        // 記録を消したときに一緒に消す。部屋を出た後でも自分の分は消せる
+        allow delete: if signedIn() && resource.data.userId == request.auth.uid;
       }
     }
   }

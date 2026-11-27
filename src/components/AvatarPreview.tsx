@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { drawSeat } from '../room/draw';
+import { drawPreviewBackdrop, drawSeat, drawSeatLabels, type Seat } from '../room/draw';
 import type { Avatar, PresenceStatus } from '../types';
 
 const W = 64;
 const H = 72;
+const DESK_Y = 46;
 
 /** 設定画面用の小さなプレビュー（勉強中 → 休憩中 を交互に見せる） */
 export function AvatarPreview({ avatar, name }: { avatar: Avatar; name: string }) {
@@ -22,32 +23,25 @@ export function AvatarPreview({ avatar, name }: { avatar: Avatar; name: string }
       const t = performance.now() - t0;
       const now = Date.now();
       const status: PresenceStatus = Math.floor(t / 6000) % 2 === 0 ? 'studying' : 'break';
-      ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      ctx.fillStyle = '#efe3cc';
-      ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#c09163';
-      ctx.fillRect(0, 44, W, H - 44);
-      drawSeat(
-        ctx,
-        W / 2,
-        48,
-        {
+      const seat: Seat = {
+        uid: 'preview',
+        isMe: true,
+        presence: {
           uid: 'preview',
-          isMe: true,
-          presence: {
-            uid: 'preview',
-            displayName: latest.current.name || 'あなた',
-            avatar: latest.current.avatar,
-            status,
-            category: 'プレビュー',
-            startedAt: now - 25 * 60 * 1000,
-            accumulatedSec: 0,
-            updatedAt: now,
-          },
+          displayName: latest.current.name || 'あなた',
+          avatar: latest.current.avatar,
+          status,
+          category: 'プレビュー',
+          startedAt: now - 25 * 60 * 1000,
+          accumulatedSec: 0,
+          updatedAt: now,
         },
-        now,
-        t,
-      );
+      };
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      drawPreviewBackdrop(ctx, W, H, DESK_Y - 6);
+      drawSeat(ctx, W / 2, DESK_Y, seat, now, t);
+      drawSeatLabels(ctx, W / 2, DESK_Y, seat, now, t);
     }, 1000 / 12);
     return () => clearInterval(id);
   }, []);

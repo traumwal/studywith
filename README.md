@@ -9,17 +9,24 @@
 ## できること（MVP）
 
 - **ログインと部屋への参加**：Google ログイン / ゲスト。招待コード・招待リンク（`?join=コード`）で友達だけの部屋に参加
-- **固定の 2D 勉強部屋**：人数分の机が並ぶ部屋（最大 8 人、4 列 × 2 行。スマホ幅では 2 列）
-- **アバター**：髪型 4 種・髪色・服の色・肌の色を選ぶだけ。状態で表示が変わる
-  - 勉強中 → 机に向かってペンを動かす（デスクライト点灯）
+- **固定の 2D 勉強部屋「空と水のテラス」**：入道雲と水面が見える吹き抜けのテラスに、机が 2 つ並ぶ 2 人用の部屋
+- **アバター**：髪型 4 種・髪色・服の色・肌の色、机と椅子の色の組み合わせ（5 種）を選ぶだけ。状態で表示が変わる
+  - 勉強中 → 机に向かってペンを動かす（クランプ式のライトが点灯）
   - 休憩中 → 伸びをする / 飲み物を飲む
   - 離席中（開いているが勉強していない）→ 空席
   - オフライン（閉じている・5 分以上更新なし）→ 机で寝ている
   - 頭の上に「分野名＋経過時間」（例：`TOEIC 45分`）
 - **手動のスタート / 休憩 / ストップ**：分野を選んでスタート。休憩時間は記録に含めない。リロードしてもタイマーは続く。1 分未満は保存しない
+- **カメラの在席判定（任意）**：下のバーの「📷 カメラ」をオンにすると、顔が 3 分見えないときに自動で一時停止して「離席中」になり、戻ると再開する。いなかった時間は記録に入らない。映像は端末の中で顔があるかを調べるだけで、送信も保存もしない
+- **ポモドーロ**：スタート前に「25分＋5分」「50分＋10分」を選ぶと、集中と休憩が自動で切り替わる（4 回目ごとに長い休憩）。休憩中はアバターも休憩の姿に
 - **時間記録と集計**：週ごとの合計・前週比・日別（分野で色分け）・分野別。記録の削除、つけ忘れの手動追加
 - 分野の追加・削除（初期値：学校課題 / CG / 英語 / TOEIC / 基本情報 / paiza / アプリ開発 / 映画 / イラスト）
-- おまけ：窓の外と壁の時計が、見ている人の現地時刻に合わせて昼・夕方・夜に変わる
+- 空と部屋の明るさが、見ている人の現地時刻に合わせて昼・夕方・夜に変わる（夜は勉強中の人のライトだけが灯る）
+- **スタンプ**：部屋の下のボタンで定型文を送ると、部屋の空を右から左へ流れる（音・通知なし）。定型文は設定の「マイセット」で最大 8 個まで編集
+- **自動メッセージ**：スタート・休憩・ストップのときに固定の文章が流れる（例：`英語 50分 終わった`）。口調は ふつう / ねこ / ゆるい / 元気 から選ぶ
+- **LOG**：部屋の脇の `LOG` で、流れたスタンプと自動メッセージを新しい順に 50 件まで見られる（開く前に流れたものもここで見る）
+- 同時に入れる部屋は 1 つ（ヘッダーで選んでいる部屋）。切り替えると前の部屋ではオフラインになる
+- **タイムライン**：記録画面の上に「今日（6 時〜翌 6 時）」の帯グラフ。自分と相手の勉強した時間帯と、2 人の時間が重なった部分を並べる。相手に共有するのは分野と時刻だけで、2 日後に自動で消える
 
 ## 動かし方
 
@@ -60,6 +67,8 @@ npm run build
 firebase deploy               # firestore.rules と dist/ をデプロイ
 ```
 
+`firebase deploy` で、タイムラインを 2 日で消す TTL の設定（`firestore.indexes.json`）も一緒に反映されます。
+
 デプロイした URL を友達に送れば、インストールなしで使えます（Vercel などでも可。その場合も `firestore.rules` は `firebase deploy --only firestore` で反映してください）。
 
 ## データ構成（Firestore）
@@ -68,15 +77,18 @@ Firestore はコレクションとドキュメントが交互になるため、�
 
 ```
 rooms/{roomId}                      name, createdAt, memberIds[]      ※ roomId = 招待コード
+rooms/{roomId}/messages/{id}        senderId, kind, text, createdAt   ※ スタンプ・自動メッセージ
+rooms/{roomId}/timeline/{id}        userId, category, startedAt, endedAt, expireAt
+                                    ※ タイムライン用の共有コピー（id は記録と同じ・expireAt は Timestamp で 2 日後に TTL で削除）
 rooms/{roomId}/presence/{userId}    status, category, startedAt, accumulatedSec, updatedAt,
                                     displayName, avatar               ※ 部屋の描画に必要な分だけ複製
-users/{userId}                      displayName, avatar{hair, hairColor, outfitColor, skin}, categories[]
-users/{userId}/sessions/{id}        category, startedAt, endedAt, durationSec, source: "manual" | "camera"
+users/{userId}                      displayName, avatar{hair, hairColor, outfitColor, skin, desk}, categories[], stamps[], tone
+users/{userId}/sessions/{id}        category, startedAt, endedAt, durationSec, source: "manual" | "camera", roomId?
 ```
 
 - 時刻はすべてミリ秒の数値
 - `accumulatedSec`：休憩をはさんだときの、それまでの勉強秒数（相手側で経過時間を計算するため）
-- ルール（`firestore.rules`）：部屋と在席情報はメンバーだけが読める。参加は「自分を追加」、退出は「自分を削除」だけ許可。勉強記録は本人だけが読み書きできる
+- ルール（`firestore.rules`）：部屋と在席情報・メッセージはメンバーだけが読める。参加は「自分を追加」（最大 2 人）、退出は「自分を削除」だけ許可。メッセージは自分の名前で 40 文字まで送れて、変更・削除はできない。タイムラインは自分の分だけ置けて、削除も本人だけ。勉強記録は本人だけが読み書きできる
 
 ## 軽さのための工夫（仕様 7.）
 
@@ -92,25 +104,32 @@ src/
   backend/                  保存先の窓口（firebase.ts / local.ts を同じインターフェースで）
   room/draw.ts              部屋とアバターのドット絵描画（素材なし・fillRect で描画）
   room/RoomCanvas.tsx       描画ループ（12fps・非表示時停止・整数倍拡大）
+  room/comments.ts          部屋の空を流れるコメント（レーンの割り当て・吹き出しの描画）
+  lib/messages.ts           自動メッセージの文章・スタンプの初期値など
+  lib/timeline.ts           タイムラインの 1 日の枠・2 人の重なりの計算
+  lib/pomodoro.ts           ポモドーロの集中 ⇔ 休憩の切り替え（閉じていた間の追いつきも）
+  lib/camera.ts             カメラの顔検出の結果から「いる / いない」を決める
+  lib/blockTelemetry.ts     MediaPipe の利用統計の送信を止める
+  hooks/useCameraPresence.ts  カメラと顔検出（MediaPipe はオンにしたときだけ読み込む）
+public/models/              顔検出のモデル（MediaPipe の blaze_face_short_range、Apache-2.0）
+  lib/record.ts             記録の保存・削除（タイムラインへのコピーも一緒に）
   hooks/useStudyTimer.ts    タイマー（localStorage に保持）
-  hooks/usePresencePublisher.ts  自分の状態を参加中の部屋へ送信
+  hooks/usePresencePublisher.ts  自分の状態を入っている部屋（1 つ）へ送信
   components/               画面部品（TimerBar, Stats, Settings, RoomView など）
   lib/                      時間・集計・色・招待コードの小さな関数
 ```
 
-自作の絵に差し替えるときは `src/room/draw.ts` の `drawSeat` / `drawRoom` を書き換えれば、他は変えずに済みます。
+自作の絵に差し替えるときは `src/room/draw.ts` の `drawRoom` / `drawSeat` / `drawLighting` / `drawSeatLabels` を書き換えれば、他は変えずに済みます。部屋のデザインの詳細は [SPEC.md](./SPEC.md) の 4 章にあります。
 
 ## 次のバージョンでやること
 
-- カメラによる在席判定（MediaPipe Face Detector、1〜3 秒に 1 回、320×240、映像は送信・保存しない）
-- ポモドーロタイマー
 - 窓の外を「各メンバーの」現地時刻に合わせる（今は見ている人の時刻）
 
 ## 決めたこと（仕様書の「未決定」のうち仮に決めたもの）
 
 | 項目 | 仮の値 | 変更する場所 |
 |---|---|---|
-| 1 部屋の最大人数 | 8 人 | `src/constants.ts` の `MAX_ROOM_MEMBERS` と `firestore.rules` |
+| 1 部屋の最大人数 | 2 人 | `src/constants.ts` の `MAX_ROOM_MEMBERS` と `firestore.rules`（描画は人数が増えると横に広がる） |
 | 絵柄・視点 | ドット絵・正面から | `src/room/draw.ts` |
 | オフライン判定 | 5 分更新なし | `PRESENCE_STALE_MS` |
 | 記録の見せ方 | 週単位の日別棒グラフ＋分野別横棒 | `src/components/Stats.tsx` |

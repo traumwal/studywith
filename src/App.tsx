@@ -7,16 +7,20 @@ import { RoomView } from './components/RoomView';
 import { Settings } from './components/Settings';
 import { Stats } from './components/Stats';
 import { TimerBar } from './components/TimerBar';
-import { MIN_SESSION_SEC } from './constants';
+import { MIN_SESSION_SEC, POMODORO_MESSAGE_FRESH_MS, type PomodoroPresetId } from './constants';
 import { usePresencePublisher } from './hooks/usePresencePublisher';
+import { useCameraPresence } from './hooks/useCameraPresence';
 import { useStudyTimer } from './hooks/useStudyTimer';
 import { normalizeRoomCode } from './lib/code';
 import { newProfile } from './lib/profile';
+import { autoMessageText, toneOf, type AutoKind } from './lib/messages';
+import { saveSession } from './lib/record';
 import { formatDuration } from './lib/time';
 import type { AuthUser, Room, UserProfile } from './types';
 
 const PENDING_JOIN_KEY = 'studyroom:v1:pendingJoin';
 const CURRENT_ROOM_KEY = 'studyroom:v1:currentRoom';
+const CAMERA_KEY = 'studyroom:v1:camera';
 
 // 招待リンク (?join=CODE) で開かれたら、ログイン後に参加できるよう覚えておく
 {
@@ -107,11 +111,31 @@ function Main({
   const [addingRoom, setAddingRoom] = useState(false);
   const [toast, setToast] = useState('');
   const [sessionVersion, setSessionVersion] = useState(0);
-  const { timer, start, pause, resume, stop, changeCategory } = useStudyTimer(profile.uid);
+  const { timer, start, pause, resume, stop, changeCategory } = useStudyTimer(profile.uid, (events, next) => {
+    // ポモドーロで休憩に切り替わったら、手動の休憩と同じ自動メッセージを流す。
+    // 閉じている間に切り替わっていた分は、まとめて流さない（いちばん新しい切り替えが最近のときだけ）
+    const last = events.at(-1)!;
+    if (last.kind === 'break' && Date.now() - last.at < POMODORO_MESSAGE_FRESH_MS) sendAuto('auto-break', next.category);
+  });
 
   useEffect(() => backend.watchMyRooms(profile.uid, setRooms), [backend, profile.uid]);
 
-  usePresencePublisher(backend, profile, rooms ?? [], timer);
+  // 入っている部屋（同時に入れるのは 1 つ）
+  const current = rooms?.find((r) => r.id === roomId) ?? rooms?.[0] ?? null;
+  usePresencePublisher(backend, profile, current?.id ?? null, timer);
+
+  /** スタート・休憩・ストップの自動メッセージを、入っている部屋に流す */
+  const sendAuto = (kind: AutoKind, category: string, durationSec = 0) => {
+    if (!current) return;
+    backend
+      .sendMessage(current.id, {
+        senderId: profile.uid,
+        kind,
+        text: autoMessageText(toneOf(profile), kind, category, durationSec),
+        createdAt: Date.now(),
+      })
+      .catch((e) => console.warn('message', e));
+  };
 
   const toastTimer = useRef(0);
   const showToast = useCallback((msg: string) => {
@@ -146,7 +170,41 @@ function Main({
       .catch((e) => showToast(e instanceof Error ? e.message : String(e)));
   }, [join, showToast]);
 
-  const current = rooms?.find((r) => r.id === roomId) ?? rooms?.[0] ?? null;
+  // ───── カメラの在席判定 ─────
+  // 顔が見えなくなって 3 分たったら一時停止（離席）、戻ってきたら自動で再開する。
+  // 手動の休憩やポモドーロの休憩中は触らない
+  const [cameraOn, setCameraOn] = useState(() => localStorage.getItem(CAMERA_KEY) === 'on');
+  const camera = useCameraPresence(cameraOn);
+  const toggleCamera = (on: boolean) => {
+    setCameraOn(on);
+    localStorage.setItem(CAMERA_KEY, on ? 'on' : 'off');
+  };
+  useEffect(() => {
+    if (camera.status === 'error') {
+      showToast(camera.error);
+      toggleCamera(false);
+    }
+  }, [camera.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!timer) return;
+    if (camera.status === 'on' && !camera.present && timer.segmentStartedAt) {
+      pause({ by: 'camera', at: camera.lastSeenAt ?? undefined });
+    } else if (timer.pausedBy === 'camera' && camera.present) {
+      // 戻ってきた（またはカメラを切った）ら再開
+      resume();
+    }
+  }, [camera.status, camera.present, camera.lastSeenAt, timer, pause, resume]);
+
+  const handleStart = (category: string, pomodoro?: PomodoroPresetId) => {
+    start(category, pomodoro);
+    sendAuto('auto-start', category);
+  };
+
+  const handlePause = () => {
+    if (!timer?.segmentStartedAt) return;
+    pause();
+    sendAuto('auto-break', timer.category);
+  };
 
   const handleStop = async () => {
     const result = stop();
@@ -156,8 +214,9 @@ function Main({
       return;
     }
     try {
-      await backend.addSession(profile.uid, { ...result, source: 'manual' });
+      await saveSession(backend, profile.uid, current?.id ?? null, { ...result, source: camera.status === 'on' ? 'camera' : 'manual' });
       setSessionVersion((v) => v + 1);
+      sendAuto('auto-stop', result.category, result.durationSec);
       showToast(`${result.category} ${formatDuration(result.durationSec)} を記録しました`);
     } catch (e) {
       console.error(e);
@@ -231,9 +290,9 @@ function Main({
               onCancel={current ? () => setAddingRoom(false) : undefined}
             />
           ) : (
-            <RoomView backend={backend} room={current} myUid={profile.uid} />
+            <RoomView backend={backend} room={current} profile={profile} />
           ))}
-        {tab === 'stats' && <Stats backend={backend} profile={profile} version={sessionVersion} />}
+        {tab === 'stats' && <Stats backend={backend} profile={profile} room={current} version={sessionVersion} />}
         {tab === 'settings' && (
           <Settings
             backend={backend}
@@ -249,11 +308,12 @@ function Main({
         <TimerBar
           categories={profile.categories}
           timer={timer}
-          onStart={start}
-          onPause={pause}
+          onStart={handleStart}
+          onPause={handlePause}
           onResume={resume}
           onStop={handleStop}
           onChangeCategory={changeCategory}
+          camera={{ ...camera, enabled: cameraOn, onToggle: toggleCamera }}
         />
       </footer>
 

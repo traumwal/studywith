@@ -10,7 +10,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
 
 let env: RulesTestEnvironment;
 const db = (uid: string) => env.authenticatedContext(uid).firestore();
@@ -27,6 +27,7 @@ beforeEach(async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const f = ctx.firestore();
     await setDoc(doc(f, 'rooms/ROOM01'), { name: '部屋', createdAt: 1, memberIds: ['alice', 'bob'] });
+    await setDoc(doc(f, 'rooms/SOLO01'), { name: '1人の部屋', createdAt: 1, memberIds: ['alice'] });
     await setDoc(doc(f, 'rooms/ROOM01/presence/bob'), { status: 'studying' });
     await setDoc(doc(f, 'users/bob/sessions/s1'), { category: 'TOEIC', durationSec: 60 });
   });
@@ -45,8 +46,8 @@ describe('rooms', () => {
   });
 
   it('招待コードを知っていれば部屋を確認して参加できる', async () => {
-    await assertSucceeds(getDoc(doc(db('carol'), 'rooms/ROOM01')));
-    await assertSucceeds(updateDoc(doc(db('carol'), 'rooms/ROOM01'), { memberIds: arrayUnion('carol') }));
+    await assertSucceeds(getDoc(doc(db('carol'), 'rooms/SOLO01')));
+    await assertSucceeds(updateDoc(doc(db('carol'), 'rooms/SOLO01'), { memberIds: arrayUnion('carol') }));
   });
 
   it('他人を追加・削除したり、名前を書き換えたりはできない', async () => {
@@ -59,11 +60,76 @@ describe('rooms', () => {
     await assertSucceeds(updateDoc(doc(db('alice'), 'rooms/ROOM01'), { memberIds: arrayRemove('alice') }));
   });
 
-  it('8人を超えては参加できない', async () => {
-    await env.withSecurityRulesDisabled((ctx) =>
-      setDoc(doc(ctx.firestore(), 'rooms/FULL01'), { name: 'a', createdAt: 1, memberIds: ['1', '2', '3', '4', '5', '6', '7', '8'] }),
-    );
-    await assertFails(updateDoc(doc(db('carol'), 'rooms/FULL01'), { memberIds: arrayUnion('carol') }));
+  it('2人を超えては参加できない', async () => {
+    await assertFails(updateDoc(doc(db('carol'), 'rooms/ROOM01'), { memberIds: arrayUnion('carol') }));
+  });
+});
+
+describe('messages', () => {
+  const msg = (senderId: string, extra: Record<string, unknown> = {}) => ({
+    senderId,
+    kind: 'stamp',
+    text: 'おつかれ',
+    createdAt: Date.now(),
+    ...extra,
+  });
+
+  it('メンバーは自分の名前でだけ送れて、読める', async () => {
+    await assertSucceeds(addDoc(collection(db('alice'), 'rooms/ROOM01/messages'), msg('alice')));
+    await assertSucceeds(addDoc(collection(db('alice'), 'rooms/ROOM01/messages'), msg('alice', { kind: 'auto-stop', text: '英語 50分 終わった' })));
+    await assertSucceeds(getDocs(collection(db('bob'), 'rooms/ROOM01/messages')));
+    await assertFails(addDoc(collection(db('alice'), 'rooms/ROOM01/messages'), msg('bob')));
+  });
+
+  it('メンバー以外は読めず、送れない', async () => {
+    await assertFails(getDocs(collection(db('carol'), 'rooms/ROOM01/messages')));
+    await assertFails(addDoc(collection(db('carol'), 'rooms/ROOM01/messages'), msg('carol')));
+  });
+
+  it('文字数・種類・時刻・余分な項目を検証する', async () => {
+    const add = (data: Record<string, unknown>) => addDoc(collection(db('alice'), 'rooms/ROOM01/messages'), data);
+    await assertSucceeds(add(msg('alice', { text: 'あ'.repeat(40) })));
+    await assertFails(add(msg('alice', { text: 'あ'.repeat(41) })));
+    await assertFails(add(msg('alice', { text: '' })));
+    await assertFails(add(msg('alice', { kind: 'chat' })));
+    await assertFails(add(msg('alice', { createdAt: Date.now() - 10 * 60 * 1000 })));
+    await assertFails(add(msg('alice', { extra: 1 })));
+  });
+
+  it('送ったものは変更・削除できない', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'rooms/ROOM01/messages/m1'), msg('alice')));
+    await assertFails(updateDoc(doc(db('alice'), 'rooms/ROOM01/messages/m1'), { text: '書き換え' }));
+    await assertFails(deleteDoc(doc(db('alice'), 'rooms/ROOM01/messages/m1')));
+  });
+});
+
+describe('timeline', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const entry = (userId: string, extra: Record<string, unknown> = {}) => {
+    const endedAt = Date.now() - 60 * 1000;
+    return { userId, category: '英語', startedAt: endedAt - 50 * 60 * 1000, endedAt, expireAt: Timestamp.fromMillis(endedAt + 2 * DAY), ...extra };
+  };
+
+  it('メンバーは自分の分だけ置けて、相手の分も読める', async () => {
+    await assertSucceeds(setDoc(doc(db('alice'), 'rooms/ROOM01/timeline/s1'), entry('alice')));
+    await assertSucceeds(getDocs(collection(db('bob'), 'rooms/ROOM01/timeline')));
+    await assertFails(setDoc(doc(db('alice'), 'rooms/ROOM01/timeline/s2'), entry('bob')));
+    await assertFails(getDocs(collection(db('carol'), 'rooms/ROOM01/timeline')));
+    await assertFails(setDoc(doc(db('carol'), 'rooms/ROOM01/timeline/s3'), entry('carol')));
+  });
+
+  it('消える時刻は終了の 2 日後でなければならない', async () => {
+    const e = entry('alice');
+    await assertFails(setDoc(doc(db('alice'), 'rooms/ROOM01/timeline/s1'), { ...e, expireAt: Timestamp.fromMillis(e.endedAt + 30 * DAY) }));
+    await assertFails(setDoc(doc(db('alice'), 'rooms/ROOM01/timeline/s1'), { ...e, expireAt: e.endedAt + 2 * DAY }));
+    await assertFails(setDoc(doc(db('alice'), 'rooms/ROOM01/timeline/s1'), { ...e, note: '余分' }));
+  });
+
+  it('変更はできず、削除は本人だけ', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'rooms/ROOM01/timeline/s1'), entry('alice')));
+    await assertFails(updateDoc(doc(db('alice'), 'rooms/ROOM01/timeline/s1'), { category: 'CG' }));
+    await assertFails(deleteDoc(doc(db('bob'), 'rooms/ROOM01/timeline/s1')));
+    await assertSucceeds(deleteDoc(doc(db('alice'), 'rooms/ROOM01/timeline/s1')));
   });
 });
 
