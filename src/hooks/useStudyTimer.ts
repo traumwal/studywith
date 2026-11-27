@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { PomodoroPresetId } from '../constants';
+import { advancePomodoro, pausePomodoro, resumePomodoro, startPomodoro, type PomodoroEvent, type PomodoroState } from '../lib/pomodoro';
 
 /** 進行中の勉強。リロードしても消えないよう localStorage に置く */
 export interface ActiveTimer {
@@ -9,6 +11,8 @@ export interface ActiveTimer {
   accumulatedSec: number;
   /** 今の勉強区間の開始時刻。休憩中は null */
   segmentStartedAt: number | null;
+  /** ポモドーロで始めたときだけ */
+  pomodoro?: PomodoroState;
 }
 
 export interface FinishedTimer {
@@ -34,8 +38,14 @@ export function elapsedSec(t: ActiveTimer, now = Date.now()): number {
   return t.accumulatedSec + Math.max(0, running);
 }
 
-export function useStudyTimer(uid: string) {
+/**
+ * @param onPomodoro ポモドーロで集中 ⇔ 休憩が自動で切り替わったときに呼ばれる
+ *                   （閉じている間に何回も切り替わっていたら、まとめて渡す）
+ */
+export function useStudyTimer(uid: string, onPomodoro?: (events: PomodoroEvent[], timer: ActiveTimer) => void) {
   const [timer, setTimerState] = useState<ActiveTimer | null>(() => load(uid));
+  const onPomodoroRef = useRef(onPomodoro);
+  onPomodoroRef.current = onPomodoro;
 
   useEffect(() => setTimerState(load(uid)), [uid]);
 
@@ -48,22 +58,58 @@ export function useStudyTimer(uid: string) {
     [uid],
   );
 
+  // ポモドーロ：区間が終わったら自動で切り替える。
+  // タブが隠れている間はタイマーが遅れるので、見えるようになったときにも追いつかせる
+  useEffect(() => {
+    if (!timer?.pomodoro) return;
+    const check = () => {
+      const { timer: next, events } = advancePomodoro(timer, Date.now());
+      if (!events.length) return;
+      setTimer(next);
+      onPomodoroRef.current?.(events, next);
+    };
+    check();
+    const id = setInterval(check, 1000);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', check);
+    };
+  }, [timer, setTimer]);
+
   const start = useCallback(
-    (category: string) => {
+    (category: string, pomodoro?: PomodoroPresetId) => {
       const now = Date.now();
-      setTimer({ category, startedAt: now, accumulatedSec: 0, segmentStartedAt: now });
+      setTimer({
+        category,
+        startedAt: now,
+        accumulatedSec: 0,
+        segmentStartedAt: now,
+        ...(pomodoro ? { pomodoro: startPomodoro(pomodoro, now) } : {}),
+      });
     },
     [setTimer],
   );
 
   const pause = useCallback(() => {
     if (!timer || !timer.segmentStartedAt) return;
-    setTimer({ ...timer, accumulatedSec: elapsedSec(timer), segmentStartedAt: null });
+    const now = Date.now();
+    setTimer({
+      ...timer,
+      accumulatedSec: elapsedSec(timer, now),
+      segmentStartedAt: null,
+      ...(timer.pomodoro ? { pomodoro: pausePomodoro(timer.pomodoro, now) } : {}),
+    });
   }, [timer, setTimer]);
 
   const resume = useCallback(() => {
     if (!timer || timer.segmentStartedAt) return;
-    setTimer({ ...timer, segmentStartedAt: Date.now() });
+    const now = Date.now();
+    setTimer({
+      ...timer,
+      segmentStartedAt: now,
+      ...(timer.pomodoro ? { pomodoro: resumePomodoro(timer.pomodoro, now) } : {}),
+    });
   }, [timer, setTimer]);
 
   const changeCategory = useCallback(
@@ -77,11 +123,13 @@ export function useStudyTimer(uid: string) {
   const stop = useCallback((): FinishedTimer | null => {
     if (!timer) return null;
     const endedAt = Date.now();
+    // ポモドーロの集中が終わった直後に押された場合も、休憩に入った分は数えない
+    const settled = timer.pomodoro ? advancePomodoro(timer, endedAt).timer : timer;
     const result = {
-      category: timer.category,
-      startedAt: timer.startedAt,
+      category: settled.category,
+      startedAt: settled.startedAt,
       endedAt,
-      durationSec: Math.round(elapsedSec(timer, endedAt)),
+      durationSec: Math.round(elapsedSec(settled, endedAt)),
     };
     setTimer(null);
     return result;

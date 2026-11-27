@@ -139,6 +139,17 @@ code { font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; }
 .clock { font-family: ui-monospace, Menlo, monospace; font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .timer-bar.paused .clock { color: var(--muted); }
 .state { font-size: 0.8rem; color: var(--muted); }
+.timer-mode { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; flex: none; }
+.timer-mode .mode { border: none; background: var(--bg-2); color: var(--muted); font: inherit; font-size: 0.8rem; padding: 6px 10px; cursor: pointer; white-space: nowrap; }
+.timer-mode .mode + .mode { border-left: 1px solid var(--line); }
+.timer-mode .mode.selected { background: var(--card); color: var(--text); font-weight: 700; box-shadow: inset 0 -2px 0 var(--accent); }
+.pomo { display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--ok); }
+.pomo.break { color: var(--accent); }
+.pomo b { font-family: ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+.pomo-dots { display: inline-flex; gap: 3px; }
+.pomo-dots i { width: 7px; height: 7px; border-radius: 2px; background: var(--line); }
+.pomo-dots i.done { background: currentColor; }
+.pomo-dots i.now { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
 .timer-bar.running .state { color: var(--ok); }
 
 /* ───── profile ───── */

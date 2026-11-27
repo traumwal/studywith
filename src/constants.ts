@@ -37,6 +37,18 @@ export const MESSAGE_LOOKBACK_MS = 30 * 1000;
 /** LOG に出す件数 */
 export const LOG_LIMIT = 50;
 
+// ───── ポモドーロ ─────
+
+export type PomodoroPresetId = '25-5' | '50-10';
+
+/** 集中と休憩の長さ（分）。every 回目ごとの休憩は長い休憩になる */
+export const POMODORO_PRESETS: { id: PomodoroPresetId; label: string; focusMin: number; breakMin: number; longBreakMin: number; every: number }[] = [
+  { id: '25-5', label: '25分＋5分', focusMin: 25, breakMin: 5, longBreakMin: 15, every: 4 },
+  { id: '50-10', label: '50分＋10分', focusMin: 50, breakMin: 10, longBreakMin: 20, every: 4 },
+];
+/** 閉じている間に切り替わった場合、自動メッセージはこれより新しい切り替えのときだけ流す */
+export const POMODORO_MESSAGE_FRESH_MS = 2 * 60 * 1000;
+
 // ───── タイムライン ─────
 
 /** タイムラインの共有コピーを残す期間（Firestore の TTL で消す。firestore.rules と合わせる） */

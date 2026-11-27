@@ -7,7 +7,7 @@ import { RoomView } from './components/RoomView';
 import { Settings } from './components/Settings';
 import { Stats } from './components/Stats';
 import { TimerBar } from './components/TimerBar';
-import { MIN_SESSION_SEC } from './constants';
+import { MIN_SESSION_SEC, POMODORO_MESSAGE_FRESH_MS, type PomodoroPresetId } from './constants';
 import { usePresencePublisher } from './hooks/usePresencePublisher';
 import { useStudyTimer } from './hooks/useStudyTimer';
 import { normalizeRoomCode } from './lib/code';
@@ -109,7 +109,12 @@ function Main({
   const [addingRoom, setAddingRoom] = useState(false);
   const [toast, setToast] = useState('');
   const [sessionVersion, setSessionVersion] = useState(0);
-  const { timer, start, pause, resume, stop, changeCategory } = useStudyTimer(profile.uid);
+  const { timer, start, pause, resume, stop, changeCategory } = useStudyTimer(profile.uid, (events, next) => {
+    // ポモドーロで休憩に切り替わったら、手動の休憩と同じ自動メッセージを流す。
+    // 閉じている間に切り替わっていた分は、まとめて流さない（いちばん新しい切り替えが最近のときだけ）
+    const last = events.at(-1)!;
+    if (last.kind === 'break' && Date.now() - last.at < POMODORO_MESSAGE_FRESH_MS) sendAuto('auto-break', next.category);
+  });
 
   useEffect(() => backend.watchMyRooms(profile.uid, setRooms), [backend, profile.uid]);
 
@@ -163,8 +168,8 @@ function Main({
       .catch((e) => showToast(e instanceof Error ? e.message : String(e)));
   }, [join, showToast]);
 
-  const handleStart = (category: string) => {
-    start(category);
+  const handleStart = (category: string, pomodoro?: PomodoroPresetId) => {
+    start(category, pomodoro);
     sendAuto('auto-start', category);
   };
 
