@@ -1,4 +1,4 @@
-import type { AuthUser, Presence, Room, RoomMessage, StudySession, Unsubscribe, UserProfile } from '../types';
+import type { AuthUser, Presence, Room, RoomMessage, StudySession, TimelineEntry, Unsubscribe, UserProfile } from '../types';
 
 export type SignInMethod = 'google' | 'guest' | 'local';
 
@@ -40,8 +40,15 @@ export interface Backend {
   /** LOG 用：新しい順に limit 件 */
   listMessages(roomId: string, limit: number): Promise<RoomMessage[]>;
 
-  addSession(uid: string, session: Omit<StudySession, 'id'>): Promise<void>;
+  /** 記録を保存して、その id を返す */
+  addSession(uid: string, session: Omit<StudySession, 'id'>): Promise<string>;
   deleteSession(uid: string, sessionId: string): Promise<void>;
+  /** タイムラインに共有コピーを置く（id は元の記録と同じ。2 日後に消える） */
+  addTimeline(roomId: string, entry: TimelineEntry): Promise<void>;
+  deleteTimeline(roomId: string, id: string): Promise<void>;
+  /** endedAt が since より後のタイムラインを購読する（2 日より前のものは含めない） */
+  watchTimeline(roomId: string, since: number, cb: (list: TimelineEntry[]) => void): Unsubscribe;
+
   /** startedAt が [from, to) の記録を新しい順で */
   listSessions(uid: string, from: number, to: number): Promise<StudySession[]>;
 }

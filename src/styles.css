@@ -228,3 +228,20 @@ code { font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; }
 }
 .tone strong { color: var(--text); font-size: 0.9rem; }
 .tone.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+/* ───── タイムライン ───── */
+.timeline .row.space { align-items: baseline; }
+.tl-grid { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.tl-row { display: grid; grid-template-columns: 4.5em 1fr; align-items: center; gap: 8px; }
+.tl-label { font-size: 0.8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-track { position: relative; height: 18px; background: var(--bg-2); border-radius: 6px;
+  background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(12.5% - 1px), var(--line) calc(12.5% - 1px), var(--line) 12.5%); }
+.tl-bar { position: absolute; top: 2px; bottom: 2px; min-width: 3px; padding: 0; border: none; border-radius: 3px; cursor: pointer; }
+.tl-bar.live { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.35) 0 3px, transparent 3px 6px); }
+.tl-bar.selected { outline: 2px solid var(--text); outline-offset: 1px; }
+.tl-bar.together { background: var(--accent); }
+.tl-row.together .tl-label { color: var(--accent); font-weight: 700; }
+.tl-now { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--danger); pointer-events: none; }
+.tl-row.axis .tl-track { height: 14px; background: none; }
+.tl-tick { position: absolute; transform: translateX(-50%); font-size: 0.7rem; color: var(--muted); font-family: ui-monospace, Menlo, monospace; }
+.tl-detail { min-height: 1.4em; margin-top: 8px; }

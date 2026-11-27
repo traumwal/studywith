@@ -24,6 +24,7 @@
 - **自動メッセージ**：スタート・休憩・ストップのときに固定の文章が流れる（例：`英語 50分 終わった`）。口調は ふつう / ねこ / ゆるい / 元気 から選ぶ
 - **LOG**：部屋の脇の `LOG` で、流れたスタンプと自動メッセージを新しい順に 50 件まで見られる（開く前に流れたものもここで見る）
 - 同時に入れる部屋は 1 つ（ヘッダーで選んでいる部屋）。切り替えると前の部屋ではオフラインになる
+- **タイムライン**：記録画面の上に「今日（6 時〜翌 6 時）」の帯グラフ。自分と相手の勉強した時間帯と、2 人の時間が重なった部分を並べる。相手に共有するのは分野と時刻だけで、2 日後に自動で消える
 
 ## 動かし方
 
@@ -64,6 +65,8 @@ npm run build
 firebase deploy               # firestore.rules と dist/ をデプロイ
 ```
 
+`firebase deploy` で、タイムラインを 2 日で消す TTL の設定（`firestore.indexes.json`）も一緒に反映されます。
+
 デプロイした URL を友達に送れば、インストールなしで使えます（Vercel などでも可。その場合も `firestore.rules` は `firebase deploy --only firestore` で反映してください）。
 
 ## データ構成（Firestore）
@@ -73,15 +76,17 @@ Firestore はコレクションとドキュメントが交互になるため、�
 ```
 rooms/{roomId}                      name, createdAt, memberIds[]      ※ roomId = 招待コード
 rooms/{roomId}/messages/{id}        senderId, kind, text, createdAt   ※ スタンプ・自動メッセージ
+rooms/{roomId}/timeline/{id}        userId, category, startedAt, endedAt, expireAt
+                                    ※ タイムライン用の共有コピー（id は記録と同じ・expireAt は Timestamp で 2 日後に TTL で削除）
 rooms/{roomId}/presence/{userId}    status, category, startedAt, accumulatedSec, updatedAt,
                                     displayName, avatar               ※ 部屋の描画に必要な分だけ複製
 users/{userId}                      displayName, avatar{hair, hairColor, outfitColor, skin, desk}, categories[], stamps[], tone
-users/{userId}/sessions/{id}        category, startedAt, endedAt, durationSec, source: "manual" | "camera"
+users/{userId}/sessions/{id}        category, startedAt, endedAt, durationSec, source: "manual" | "camera", roomId?
 ```
 
 - 時刻はすべてミリ秒の数値
 - `accumulatedSec`：休憩をはさんだときの、それまでの勉強秒数（相手側で経過時間を計算するため）
-- ルール（`firestore.rules`）：部屋と在席情報・メッセージはメンバーだけが読める。参加は「自分を追加」（最大 2 人）、退出は「自分を削除」だけ許可。メッセージは自分の名前で 40 文字まで送れて、変更・削除はできない。勉強記録は本人だけが読み書きできる
+- ルール（`firestore.rules`）：部屋と在席情報・メッセージはメンバーだけが読める。参加は「自分を追加」（最大 2 人）、退出は「自分を削除」だけ許可。メッセージは自分の名前で 40 文字まで送れて、変更・削除はできない。タイムラインは自分の分だけ置けて、削除も本人だけ。勉強記録は本人だけが読み書きできる
 
 ## 軽さのための工夫（仕様 7.）
 
@@ -99,6 +104,8 @@ src/
   room/RoomCanvas.tsx       描画ループ（12fps・非表示時停止・整数倍拡大）
   room/comments.ts          部屋の空を流れるコメント（レーンの割り当て・吹き出しの描画）
   lib/messages.ts           自動メッセージの文章・スタンプの初期値など
+  lib/timeline.ts           タイムラインの 1 日の枠・2 人の重なりの計算
+  lib/record.ts             記録の保存・削除（タイムラインへのコピーも一緒に）
   hooks/useStudyTimer.ts    タイマー（localStorage に保持）
   hooks/usePresencePublisher.ts  自分の状態を入っている部屋（1 つ）へ送信
   components/               画面部品（TimerBar, Stats, Settings, RoomView など）

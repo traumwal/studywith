@@ -53,7 +53,7 @@
 | 10 | マイセット | ✅ | 自分のスタンプの定型文を追加・削除・並べ替えできる（**最大 8 個**）。初期値に戻すボタンあり（分野の編集と同じ操作感）。自動メッセージは含まない |
 | 11 | 自動メッセージ | ✅ | スタート・休憩・ストップのときに、**固定の文章**が自動で流れて LOG に残る（例：`英語 開始` / `ちょっと休憩` / `英語 50分 終わった`）。文章は自分では変えられず、設定で**口調を 4 種類から選ぶ**だけ（4.7） |
 | 12 | LOG | ✅ | 部屋の脇に `LOG` ボタン。開くとスタンプと自動メッセージが新しい順に時刻つきで並ぶ。閉じている間に流れたものもここで見られる |
-| 13 | タイムライン（何時〜何時） | ⏳ | 集計画面に「今日」の帯グラフ。自分と相手の勉強した時間帯を 6 時〜翌 6 時の横軸（見ている人の現地時刻）に並べ、**2 人の時間が重なった部分**を 3 段目に表示。バーに触れると分野と開始・終了時刻が出る。共有用のデータは **2 日で自動的に消える**（6 章） |
+| 13 | タイムライン（何時〜何時） | ✅ | 集計画面に「今日」の帯グラフ。自分と相手の勉強した時間帯を 6 時〜翌 6 時の横軸（見ている人の現地時刻）に並べ、**2 人の時間が重なった部分**を 3 段目に表示。バーに触れると分野と開始・終了時刻が出る。共有用のデータは **2 日で自動的に消える**（6 章） |
 
 ### 将来（必要になったら）
 
@@ -224,6 +224,8 @@ expireAt = Firestore の Timestamp 型   ※ ここだけ数値ではない（TT
   - id を元の記録と同じにして、記録を削除したらタイムラインからも消す
   - **2 日後に自動で消える**：Firestore の TTL（有効期限）ポリシーを `timeline` の `expireAt` に設定する。TTL は期限を過ぎてから実際に消えるまで最大 24 時間ほどかかるので、画面側でも 2 日より前のものは表示しない
   - ローカルモードでは、読み込むときに 2 日より前のものを捨てる
+  - 2 日より前の記録（つけ忘れの手動追加など）はすぐ消えるのでコピーしない
+- タイムラインの画面：保存済みの記録は `timeline` から、**ストップ前の勉強中の区間は在席情報から**出す（縞模様のバー）。今の時刻に赤い縦線
 - 読み込み：`messages` は「部屋を開いた時刻の 30 秒前より後」を購読して流す（同じ id は 1 回だけ）。LOG を開いたときだけ新しい順に **直近 50 件**を読む
 - セキュリティルール（`firestore.rules`）
   - 部屋と在席情報はメンバーだけが読める（招待コードを知っていれば、参加前に部屋の有無と人数は確認できる）
@@ -234,7 +236,7 @@ expireAt = Firestore の Timestamp 型   ※ ここだけ数値ではない（TT
   - `timeline`：更新は不可。**削除は本人だけ**（記録を消したとき用）
   - スタンプの「3 秒に 1 回まで」はアプリ側だけの制限（ルールでは止めない。友達同士なので十分）
   - ルールを変えたら `firebase deploy --only firestore:rules` で本番に反映する
-- TTL ポリシーの設定（最初に 1 回だけ。Firebase コンソールの Firestore →「TTL」からも設定できる）
+- TTL ポリシーは `firestore.indexes.json` に書いてあり、`firebase deploy --only firestore` でルールと一緒に反映される（Firebase コンソールの Firestore →「TTL」や、次のコマンドでも設定できる）
 
 ```bash
 gcloud firestore fields ttls update expireAt --collection-group=timeline --enable-ttl
@@ -269,14 +271,14 @@ gcloud firestore fields ttls update expireAt --collection-group=timeline --enabl
 | 時間帯の切り替え | 昼 6〜16 時 / 夕方 16〜19 時 / 夜 19〜6 時 | `dayPhase`（`src/room/draw.ts`） |
 | オフライン判定 | 5 分更新なし | `PRESENCE_STALE_MS`（`src/constants.ts`） |
 | 記録の最短時間 | 1 分未満は保存しない | `MIN_SESSION_SEC`（`src/constants.ts`） |
-| 記録の見せ方 | 週単位の日別棒グラフ＋分野別横棒＋今日のタイムライン | `src/components/Stats.tsx` |
+| 記録の見せ方 | 今日のタイムライン＋週単位の日別棒グラフ＋分野別横棒 | `src/components/Stats.tsx`・`Timeline.tsx` |
 | 同時に入れる部屋 | 1 つ（ヘッダーで選んでいる部屋） | `src/hooks/usePresencePublisher.ts` |
 | コメントの見せ方 | 部屋の空を右から左へ横切る。2 レーン・約 10 秒・12fps のコマ送り・音なし | `drawComments`（`src/room/comments.ts`） |
 | スタンプの初期セット | おつかれ / がんばれ / 休憩しよ / おやすみ | `DEFAULT_STAMPS`（`src/constants.ts`） |
 | スタンプの文字数 | 40 文字まで | `MAX_MESSAGE_LEN`（`src/constants.ts`）と `firestore.rules` |
 | マイセットの数 | 最大 8 個 | `MAX_STAMPS`（`src/constants.ts`） |
 | 自動メッセージ | 固定の文章。口調はふつう / ねこ / ゆるい / 元気 の 4 種 | `TONES`（`src/constants.ts`） |
-| タイムラインの保存期間 | 2 日（TTL で自動削除） | `expireAt` と TTL ポリシー |
+| タイムラインの保存期間 | 2 日（TTL で自動削除） | `TIMELINE_KEEP_MS`（`src/constants.ts`）・`firestore.rules`・`firestore.indexes.json` |
 
 ### 未決定
 

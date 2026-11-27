@@ -76,6 +76,17 @@ export interface StudySession {
   endedAt: number;
   durationSec: number;
   source: 'manual' | 'camera';
+  /** タイムラインにコピーした部屋（削除するときに一緒に消すため） */
+  roomId?: string;
+}
+
+/** rooms/{roomId}/timeline/{id}：タイムライン用の共有コピー（id は元の記録と同じ。2 日で消える） */
+export interface TimelineEntry {
+  id: string;
+  userId: string;
+  category: string;
+  startedAt: number;
+  endedAt: number;
 }
 
 export type MessageKind = 'stamp' | 'auto-start' | 'auto-break' | 'auto-stop';

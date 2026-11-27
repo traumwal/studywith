@@ -13,6 +13,7 @@ import { useStudyTimer } from './hooks/useStudyTimer';
 import { normalizeRoomCode } from './lib/code';
 import { newProfile } from './lib/profile';
 import { autoMessageText, toneOf, type AutoKind } from './lib/messages';
+import { saveSession } from './lib/record';
 import { formatDuration } from './lib/time';
 import type { AuthUser, Room, UserProfile } from './types';
 
@@ -181,7 +182,7 @@ function Main({
       return;
     }
     try {
-      await backend.addSession(profile.uid, { ...result, source: 'manual' });
+      await saveSession(backend, profile.uid, current?.id ?? null, { ...result, source: 'manual' });
       setSessionVersion((v) => v + 1);
       sendAuto('auto-stop', result.category, result.durationSec);
       showToast(`${result.category} ${formatDuration(result.durationSec)} を記録しました`);
@@ -259,7 +260,7 @@ function Main({
           ) : (
             <RoomView backend={backend} room={current} profile={profile} />
           ))}
-        {tab === 'stats' && <Stats backend={backend} profile={profile} version={sessionVersion} />}
+        {tab === 'stats' && <Stats backend={backend} profile={profile} room={current} version={sessionVersion} />}
         {tab === 'settings' && (
           <Settings
             backend={backend}

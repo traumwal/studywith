@@ -37,6 +37,13 @@ export const MESSAGE_LOOKBACK_MS = 30 * 1000;
 /** LOG に出す件数 */
 export const LOG_LIMIT = 50;
 
+// ───── タイムライン ─────
+
+/** タイムラインの共有コピーを残す期間（Firestore の TTL で消す。firestore.rules と合わせる） */
+export const TIMELINE_KEEP_MS = 2 * 24 * 60 * 60 * 1000;
+/** タイムラインの 1 日の区切り（6 時〜翌 6 時） */
+export const TIMELINE_DAY_START_HOUR = 6;
+
 /** 自動メッセージの口調。{分野} {時間} はその時の分野と勉強時間に置き換わる */
 export const TONES: { id: Tone; label: string; start: string; break: string; stop: string }[] = [
   { id: 'plain', label: 'ふつう', start: '{分野} 開始', break: 'ちょっと休憩', stop: '{分野} {時間} 終わった' },
