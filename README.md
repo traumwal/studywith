@@ -71,6 +71,27 @@ firebase deploy               # firestore.rules と dist/ をデプロイ
 
 デプロイした URL を友達に送れば、インストールなしで使えます（Vercel などでも可。その場合も `firestore.rules` は `firebase deploy --only firestore` で反映してください）。
 
+## 自動で公開する（GitHub Actions）
+
+`.github/workflows/deploy.yml` で、次のように動きます。
+
+- プッシュ・プルリクエストのたびに：型チェック・テスト・ルールのテスト・ビルド
+- **既定のブランチに入ったとき（プルリクエストをマージしたとき）**：テストが通ったら `firebase deploy --only hosting,firestore` で公開（画面・Firestore のルール・TTL の設定）
+
+公開には、Firebase に公開してよい「鍵」（サービスアカウントの鍵）を、GitHub に 1 回だけ登録します。
+
+1. [Google Cloud コンソールの「サービス アカウント」](https://console.cloud.google.com/iam-admin/serviceaccounts?project=studywith-9090d) で「サービス アカウントを作成」
+   - 名前：`github-deploy` など
+   - ロール：**Firebase 管理者** と **API キー閲覧者**
+2. 作ったサービスアカウントを開き、「鍵」→「鍵を追加」→「新しい鍵を作成」→ JSON。ファイルがダウンロードされる
+3. GitHub のリポジトリの Settings →「Secrets and variables」→「Actions」→「New repository secret」
+   - Name：`FIREBASE_SERVICE_ACCOUNT`
+   - Secret：ダウンロードした JSON ファイルの中身をそのまま貼り付け
+4. ダウンロードした JSON ファイルはパソコンから削除する（この鍵があれば公開できてしまうので、人に渡したり Git に入れたりしない）
+
+登録していない間は、テストだけが動いて公開はとばされます（Actions の画面に注意が出ます）。
+登録後、すぐに公開したいときは Actions の「test-and-deploy」→「Run workflow」で手動でも動かせます。
+
 ## データ構成（Firestore）
 
 Firestore はコレクションとドキュメントが交互になるため、仕様書の `presence/{roomId}/{userId}` は部屋の下に置いています。
