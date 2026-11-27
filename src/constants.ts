@@ -1,4 +1,4 @@
-import type { Avatar, HairStyle } from './types';
+import type { Avatar, DeskSet, HairStyle } from './types';
 
 export const DEFAULT_CATEGORIES = [
   '学校課題',
@@ -12,8 +12,8 @@ export const DEFAULT_CATEGORIES = [
   'イラスト',
 ];
 
-/** 1部屋の最大人数（仕様では未決定。描画は 4 列 × 2 行まで想定） */
-export const MAX_ROOM_MEMBERS = 8;
+/** 1部屋の最大人数（いまは 2 人用の部屋。変えるときは firestore.rules も合わせる） */
+export const MAX_ROOM_MEMBERS = 2;
 
 /** この時間 presence が更新されなければオフライン扱いにする */
 export const PRESENCE_STALE_MS = 5 * 60 * 1000;
@@ -34,9 +34,18 @@ export const HAIR_COLORS = ['#2b1d16', '#6b4226', '#c58b4a', '#e8d27a', '#b84a3a
 export const OUTFIT_COLORS = ['#e07a5f', '#3d8bd9', '#58a55c', '#f2cc5b', '#9a6bd1', '#f0f0f0', '#3a3a48'];
 export const SKIN_COLORS = ['#f6d7b8', '#e9b88f', '#c68a5f', '#8d5a3b'];
 
+export const DESK_SETS: DeskSet[] = [
+  { id: 'ash', label: 'アッシュ × 朱', top: '#e2cca2', frame: '#f2ece0', chair: '#f0643a', arm: '#2f5a3e' },
+  { id: 'walnut', label: 'ウォルナット × 深緑', top: '#8a5a3a', frame: '#34343c', chair: '#2f6a4a', arm: '#34343c' },
+  { id: 'white', label: 'ホワイト × コバルト', top: '#f7f5ef', frame: '#b8c0cc', chair: '#2f6fd6', arm: '#3a4a6a' },
+  { id: 'oak', label: 'オーク × マスタード', top: '#d9ab6a', frame: '#f2ece0', chair: '#e0a82a', arm: '#2f5a3e' },
+  { id: 'mortar', label: 'モルタル × ラベンダー', top: '#bdb8ae', frame: '#34343c', chair: '#9a7ad6', arm: '#34343c' },
+];
+
 export const DEFAULT_AVATAR: Avatar = {
   hair: 'short',
   hairColor: HAIR_COLORS[0],
   outfitColor: OUTFIT_COLORS[1],
   skin: SKIN_COLORS[0],
+  desk: DESK_SETS[0].id,
 };

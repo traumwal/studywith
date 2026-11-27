@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { drawNightTint, drawRoom, drawSeat, roomSize, seatPosition, type Seat } from './draw';
+import { drawLighting, drawRoom, drawSeat, drawSeatLabels, effectiveStatus, EMPTY_SEAT, roomSize, seatPosition, type Seat } from './draw';
 
 const FPS = 12;
 
@@ -37,8 +37,7 @@ export function RoomCanvas({ seats }: Props) {
 
     const render = () => {
       const list = seatsRef.current;
-      const maxCols = containerW < 480 ? 2 : 4;
-      const { cols, width, height } = roomSize(list.length, maxCols);
+      const { width, height } = roomSize(list.length);
       const dpr = window.devicePixelRatio || 1;
       // にじまないよう、実ピクセルで整数倍に拡大する
       const scale = Math.max(1, Math.floor((containerW * dpr) / width));
@@ -54,12 +53,16 @@ export function RoomCanvas({ seats }: Props) {
       const nowMs = Date.now();
       const now = new Date(nowMs);
       const t = performance.now() - t0;
+      // 席数より人数が少ないときは空席を出す（席は最低 2 つ）
+      const seats: Seat[] = [...list];
+      while (seats.length < 2) seats.push({ uid: EMPTY_SEAT, presence: undefined, isMe: false });
+      const positions = seats.map((_, i) => seatPosition(i, seats.length, width));
+
       drawRoom(ctx, width, height, now, t);
-      drawNightTint(ctx, width, height, now);
-      list.forEach((seat, i) => {
-        const { cx, deskY } = seatPosition(i, cols, list.length, width);
-        drawSeat(ctx, cx, deskY, seat, nowMs, t);
-      });
+      seats.forEach((seat, i) => drawSeat(ctx, positions[i].cx, positions[i].deskY, seat, nowMs, t));
+      const lit = seats.flatMap((seat, i) => (effectiveStatus(seat.presence, nowMs) === 'studying' ? [positions[i].cx] : []));
+      drawLighting(ctx, width, height, now, lit);
+      seats.forEach((seat, i) => drawSeatLabels(ctx, positions[i].cx, positions[i].deskY, seat, nowMs, t));
     };
 
     const loop = () => {

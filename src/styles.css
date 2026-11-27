@@ -87,6 +87,15 @@ code { font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; }
 .swatches { display: flex; gap: 6px; flex-wrap: wrap; }
 .swatch { width: 28px; height: 28px; border-radius: 8px; border: 2px solid var(--line); cursor: pointer; padding: 0; }
 .swatch.selected { border-color: var(--text); box-shadow: 0 0 0 2px var(--accent); }
+.desk-sets { display: flex; flex-wrap: wrap; gap: 6px; }
+.desk-set {
+  display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px 5px 6px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--bg-2); color: var(--text);
+  font: inherit; font-size: 0.85rem; cursor: pointer;
+}
+.desk-set.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); font-weight: 700; }
+.desk-set-icon { display: inline-flex; border-radius: 6px; overflow: hidden; border: 1px solid rgba(0, 0, 0, 0.2); }
+.desk-set-icon i { display: block; width: 9px; height: 18px; }
 
 /* ───── layout ───── */
 .app { min-height: 100vh; display: flex; flex-direction: column; }

@@ -37,11 +37,11 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 40
         && request.resource.data.createdAt is number;
 
-      // 参加：自分だけを追加（最大8人） / 退出：自分だけを削除
+      // 参加：自分だけを追加（最大2人。src/constants.ts の MAX_ROOM_MEMBERS と合わせる） / 退出：自分だけを削除
       allow update: if signedIn() && othersUnchanged() && (
         (newMembers().hasAll(members())
           && newMembers().removeAll(members()).hasOnly([request.auth.uid])
-          && newMembers().size() <= 8)
+          && newMembers().size() <= 2)
         ||
         (members().hasAll(newMembers())
           && members().removeAll(newMembers()).hasOnly([request.auth.uid]))

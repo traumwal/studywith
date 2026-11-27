@@ -27,6 +27,7 @@ beforeEach(async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const f = ctx.firestore();
     await setDoc(doc(f, 'rooms/ROOM01'), { name: '部屋', createdAt: 1, memberIds: ['alice', 'bob'] });
+    await setDoc(doc(f, 'rooms/SOLO01'), { name: '1人の部屋', createdAt: 1, memberIds: ['alice'] });
     await setDoc(doc(f, 'rooms/ROOM01/presence/bob'), { status: 'studying' });
     await setDoc(doc(f, 'users/bob/sessions/s1'), { category: 'TOEIC', durationSec: 60 });
   });
@@ -45,8 +46,8 @@ describe('rooms', () => {
   });
 
   it('招待コードを知っていれば部屋を確認して参加できる', async () => {
-    await assertSucceeds(getDoc(doc(db('carol'), 'rooms/ROOM01')));
-    await assertSucceeds(updateDoc(doc(db('carol'), 'rooms/ROOM01'), { memberIds: arrayUnion('carol') }));
+    await assertSucceeds(getDoc(doc(db('carol'), 'rooms/SOLO01')));
+    await assertSucceeds(updateDoc(doc(db('carol'), 'rooms/SOLO01'), { memberIds: arrayUnion('carol') }));
   });
 
   it('他人を追加・削除したり、名前を書き換えたりはできない', async () => {
@@ -59,11 +60,8 @@ describe('rooms', () => {
     await assertSucceeds(updateDoc(doc(db('alice'), 'rooms/ROOM01'), { memberIds: arrayRemove('alice') }));
   });
 
-  it('8人を超えては参加できない', async () => {
-    await env.withSecurityRulesDisabled((ctx) =>
-      setDoc(doc(ctx.firestore(), 'rooms/FULL01'), { name: 'a', createdAt: 1, memberIds: ['1', '2', '3', '4', '5', '6', '7', '8'] }),
-    );
-    await assertFails(updateDoc(doc(db('carol'), 'rooms/FULL01'), { memberIds: arrayUnion('carol') }));
+  it('2人を超えては参加できない', async () => {
+    await assertFails(updateDoc(doc(db('carol'), 'rooms/ROOM01'), { memberIds: arrayUnion('carol') }));
   });
 });
 

@@ -1,10 +1,28 @@
 export type HairStyle = 'short' | 'long' | 'bun' | 'spiky';
 
+export type DeskSetId = 'ash' | 'walnut' | 'white' | 'oak' | 'mortar';
+
 export interface Avatar {
   hair: HairStyle;
   hairColor: string;
   outfitColor: string;
   skin: string;
+  /** 机と椅子の色の組み合わせ（古いデータには無いので省略可。無ければ既定の組み合わせ） */
+  desk?: DeskSetId;
+}
+
+/** 机（天板・フレーム）と椅子をセットにした色の組み合わせ */
+export interface DeskSet {
+  id: DeskSetId;
+  label: string;
+  /** 天板 */
+  top: string;
+  /** 脚などのスチールフレーム */
+  frame: string;
+  /** 椅子（ライトのシェードも同じ色） */
+  chair: string;
+  /** ライトのアーム */
+  arm: string;
 }
 
 export interface UserProfile {
