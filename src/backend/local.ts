@@ -1,6 +1,6 @@
 import { MAX_ROOM_MEMBERS } from '../constants';
 import { generateRoomCode, normalizeRoomCode } from '../lib/code';
-import type { AuthUser, Presence, Room, StudySession, Unsubscribe, UserProfile } from '../types';
+import type { AuthUser, Presence, Room, RoomMessage, StudySession, Unsubscribe, UserProfile } from '../types';
 import type { Backend, LocalAccount, SignInMethod } from './types';
 
 /**
@@ -16,8 +16,12 @@ interface Db {
   accounts: LocalAccount[];
   rooms: Record<string, Room>;
   presence: Record<string, Record<string, Presence>>;
+  messages: Record<string, RoomMessage[]>;
   sessions: Record<string, StudySession[]>;
 }
+
+/** ローカルモードで部屋ごとに残すメッセージの数（localStorage を使い切らないように） */
+const LOCAL_MESSAGE_KEEP = 200;
 
 type Key = keyof Db;
 
@@ -157,6 +161,22 @@ export class LocalBackend implements Backend {
     const all = read('presence', {});
     all[roomId] = { ...(all[roomId] ?? {}), [presence.uid]: presence };
     this.write('presence', all);
+  }
+
+  async sendMessage(roomId: string, message: Omit<RoomMessage, 'id'>) {
+    const all = read('messages', {});
+    all[roomId] = [...(all[roomId] ?? []), { ...message, id: crypto.randomUUID() }].slice(-LOCAL_MESSAGE_KEEP);
+    this.write('messages', all);
+  }
+
+  watchMessages(roomId: string, since: number, cb: (list: RoomMessage[]) => void): Unsubscribe {
+    return this.subscribe('messages', () =>
+      cb((read('messages', {})[roomId] ?? []).filter((m) => m.createdAt > since).sort((a, b) => a.createdAt - b.createdAt)),
+    );
+  }
+
+  async listMessages(roomId: string, limit: number) {
+    return [...(read('messages', {})[roomId] ?? [])].sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);
   }
 
   async addSession(uid: string, session: Omit<StudySession, 'id'>) {

@@ -1,20 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
+import { drawComments, type CommentScheduler } from './comments';
 import { drawLighting, drawRoom, drawSeat, drawSeatLabels, effectiveStatus, EMPTY_SEAT, roomSize, seatPosition, type Seat } from './draw';
 
 const FPS = 12;
 
 interface Props {
   seats: Seat[];
+  /** 部屋を流れるコメント（無ければ流さない） */
+  comments?: CommentScheduler;
 }
 
 /**
  * 部屋の描画。12fps で描き、タブが見えていないときは止める（仕様 7. パフォーマンス）。
  */
-export function RoomCanvas({ seats }: Props) {
+export function RoomCanvas({ seats, comments }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const seatsRef = useRef(seats);
   seatsRef.current = seats;
+  const commentsRef = useRef(comments);
+  commentsRef.current = comments;
   const [containerW, setContainerW] = useState(0);
 
   useEffect(() => {
@@ -62,6 +67,8 @@ export function RoomCanvas({ seats }: Props) {
       seats.forEach((seat, i) => drawSeat(ctx, positions[i].cx, positions[i].deskY, seat, nowMs, t));
       const lit = seats.flatMap((seat, i) => (effectiveStatus(seat.presence, nowMs) === 'studying' ? [positions[i].cx] : []));
       drawLighting(ctx, width, height, now, lit);
+      // コメントと看板は、夜でも読めるよう暗さをかけた後に描く
+      if (commentsRef.current) drawComments(ctx, commentsRef.current, width, nowMs, scale);
       seats.forEach((seat, i) => drawSeatLabels(ctx, positions[i].cx, positions[i].deskY, seat, nowMs, t));
     };
 

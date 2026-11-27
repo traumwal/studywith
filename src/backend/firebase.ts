@@ -27,11 +27,12 @@ import {
   updateDoc,
   where,
   addDoc,
+  limit as limitTo,
   type Firestore,
 } from 'firebase/firestore';
 import { MAX_ROOM_MEMBERS } from '../constants';
 import { generateRoomCode, normalizeRoomCode } from '../lib/code';
-import type { AuthUser, Presence, Room, StudySession, Unsubscribe, UserProfile } from '../types';
+import type { AuthUser, Presence, Room, RoomMessage, StudySession, Unsubscribe, UserProfile } from '../types';
 import type { Backend, SignInMethod } from './types';
 
 /**
@@ -40,7 +41,8 @@ import type { Backend, SignInMethod } from './types';
  *
  * rooms/{roomId}                       name, createdAt, memberIds[]   ※ roomId = 招待コード
  * rooms/{roomId}/presence/{uid}        status, category, startedAt, accumulatedSec, updatedAt, displayName, avatar
- * users/{uid}                          displayName, avatar, categories
+ * rooms/{roomId}/messages/{id}         senderId, kind, text, createdAt
+ * users/{uid}                          displayName, avatar, categories, stamps, tone
  * users/{uid}/sessions/{sessionId}     category, startedAt, endedAt, durationSec, source
  */
 export class FirebaseBackend implements Backend {
@@ -142,6 +144,25 @@ export class FirebaseBackend implements Backend {
 
   async setPresence(roomId: string, presence: Presence) {
     await setDoc(doc(this.db, 'rooms', roomId, 'presence', presence.uid), presence);
+  }
+
+  async sendMessage(roomId: string, message: Omit<RoomMessage, 'id'>) {
+    await addDoc(collection(this.db, 'rooms', roomId, 'messages'), message);
+  }
+
+  watchMessages(roomId: string, since: number, cb: (list: RoomMessage[]) => void): Unsubscribe {
+    const q = query(collection(this.db, 'rooms', roomId, 'messages'), where('createdAt', '>', since), orderBy('createdAt'));
+    return onSnapshot(
+      q,
+      (snap) => cb(snap.docs.map((d) => ({ ...(d.data() as Omit<RoomMessage, 'id'>), id: d.id }))),
+      (e) => console.warn('messages', e),
+    );
+  }
+
+  async listMessages(roomId: string, limit: number) {
+    const q = query(collection(this.db, 'rooms', roomId, 'messages'), orderBy('createdAt', 'desc'), limitTo(limit));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ ...(d.data() as Omit<RoomMessage, 'id'>), id: d.id }));
   }
 
   async addSession(uid: string, session: Omit<StudySession, 'id'>) {

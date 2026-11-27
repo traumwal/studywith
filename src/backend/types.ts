@@ -1,4 +1,4 @@
-import type { AuthUser, Presence, Room, StudySession, Unsubscribe, UserProfile } from '../types';
+import type { AuthUser, Presence, Room, RoomMessage, StudySession, Unsubscribe, UserProfile } from '../types';
 
 export type SignInMethod = 'google' | 'guest' | 'local';
 
@@ -32,6 +32,13 @@ export interface Backend {
 
   watchPresence(roomId: string, cb: (list: Presence[]) => void): Unsubscribe;
   setPresence(roomId: string, presence: Presence): Promise<void>;
+
+  /** スタンプ・自動メッセージを部屋に送る */
+  sendMessage(roomId: string, message: Omit<RoomMessage, 'id'>): Promise<void>;
+  /** createdAt が since より後のメッセージを古い順で購読する */
+  watchMessages(roomId: string, since: number, cb: (list: RoomMessage[]) => void): Unsubscribe;
+  /** LOG 用：新しい順に limit 件 */
+  listMessages(roomId: string, limit: number): Promise<RoomMessage[]>;
 
   addSession(uid: string, session: Omit<StudySession, 'id'>): Promise<void>;
   deleteSession(uid: string, sessionId: string): Promise<void>;

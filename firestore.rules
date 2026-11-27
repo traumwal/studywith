@@ -20,6 +20,10 @@ service cloud.firestore {
 
     match /rooms/{roomId} {
       function members() { return resource.data.memberIds; }
+      function isMember() {
+        return signedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.memberIds;
+      }
       function newMembers() { return request.resource.data.memberIds; }
       function othersUnchanged() {
         return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds']);
@@ -48,13 +52,28 @@ service cloud.firestore {
       );
 
       match /presence/{uid} {
-        function isMember() {
-          return request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.memberIds;
-        }
-        allow read: if signedIn() && isMember();
+        allow read: if isMember();
         allow create, update: if isMe(uid) && isMember();
         // 退出後でも自分の在席情報は消せるようにする
         allow delete: if isMe(uid);
+      }
+
+      // スタンプ・自動メッセージ。メンバーだけが読み書きでき、送ったものは変更・削除できない
+      match /messages/{messageId} {
+        function validMessage(d) {
+          return d.keys().hasOnly(['senderId', 'kind', 'text', 'createdAt'])
+            && d.senderId == request.auth.uid
+            && d.kind in ['stamp', 'auto-start', 'auto-break', 'auto-stop']
+            && d.text is string
+            && d.text.size() > 0
+            && d.text.size() <= 40                                   // MAX_MESSAGE_LEN
+            && d.createdAt is number
+            && d.createdAt > request.time.toMillis() - 60 * 1000     // 端末の時計のずれは ±1 分まで
+            && d.createdAt < request.time.toMillis() + 60 * 1000;
+        }
+        allow read: if isMember();
+        allow create: if isMember() && validMessage(request.resource.data);
+        allow update, delete: if false;
       }
     }
   }

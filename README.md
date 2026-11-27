@@ -20,6 +20,10 @@
 - **時間記録と集計**：週ごとの合計・前週比・日別（分野で色分け）・分野別。記録の削除、つけ忘れの手動追加
 - 分野の追加・削除（初期値：学校課題 / CG / 英語 / TOEIC / 基本情報 / paiza / アプリ開発 / 映画 / イラスト）
 - 空と部屋の明るさが、見ている人の現地時刻に合わせて昼・夕方・夜に変わる（夜は勉強中の人のライトだけが灯る）
+- **スタンプ**：部屋の下のボタンで定型文を送ると、部屋の空を右から左へ流れる（音・通知なし）。定型文は設定の「マイセット」で最大 8 個まで編集
+- **自動メッセージ**：スタート・休憩・ストップのときに固定の文章が流れる（例：`英語 50分 終わった`）。口調は ふつう / ねこ / ゆるい / 元気 から選ぶ
+- **LOG**：部屋の脇の `LOG` で、流れたスタンプと自動メッセージを新しい順に 50 件まで見られる（開く前に流れたものもここで見る）
+- 同時に入れる部屋は 1 つ（ヘッダーで選んでいる部屋）。切り替えると前の部屋ではオフラインになる
 
 ## 動かし方
 
@@ -68,15 +72,16 @@ Firestore はコレクションとドキュメントが交互になるため、�
 
 ```
 rooms/{roomId}                      name, createdAt, memberIds[]      ※ roomId = 招待コード
+rooms/{roomId}/messages/{id}        senderId, kind, text, createdAt   ※ スタンプ・自動メッセージ
 rooms/{roomId}/presence/{userId}    status, category, startedAt, accumulatedSec, updatedAt,
                                     displayName, avatar               ※ 部屋の描画に必要な分だけ複製
-users/{userId}                      displayName, avatar{hair, hairColor, outfitColor, skin, desk}, categories[]
+users/{userId}                      displayName, avatar{hair, hairColor, outfitColor, skin, desk}, categories[], stamps[], tone
 users/{userId}/sessions/{id}        category, startedAt, endedAt, durationSec, source: "manual" | "camera"
 ```
 
 - 時刻はすべてミリ秒の数値
 - `accumulatedSec`：休憩をはさんだときの、それまでの勉強秒数（相手側で経過時間を計算するため）
-- ルール（`firestore.rules`）：部屋と在席情報はメンバーだけが読める。参加は「自分を追加」（最大 2 人）、退出は「自分を削除」だけ許可。勉強記録は本人だけが読み書きできる
+- ルール（`firestore.rules`）：部屋と在席情報・メッセージはメンバーだけが読める。参加は「自分を追加」（最大 2 人）、退出は「自分を削除」だけ許可。メッセージは自分の名前で 40 文字まで送れて、変更・削除はできない。勉強記録は本人だけが読み書きできる
 
 ## 軽さのための工夫（仕様 7.）
 
@@ -92,8 +97,10 @@ src/
   backend/                  保存先の窓口（firebase.ts / local.ts を同じインターフェースで）
   room/draw.ts              部屋とアバターのドット絵描画（素材なし・fillRect で描画）
   room/RoomCanvas.tsx       描画ループ（12fps・非表示時停止・整数倍拡大）
+  room/comments.ts          部屋の空を流れるコメント（レーンの割り当て・吹き出しの描画）
+  lib/messages.ts           自動メッセージの文章・スタンプの初期値など
   hooks/useStudyTimer.ts    タイマー（localStorage に保持）
-  hooks/usePresencePublisher.ts  自分の状態を参加中の部屋へ送信
+  hooks/usePresencePublisher.ts  自分の状態を入っている部屋（1 つ）へ送信
   components/               画面部品（TimerBar, Stats, Settings, RoomView など）
   lib/                      時間・集計・色・招待コードの小さな関数
 ```

@@ -12,6 +12,7 @@ import { usePresencePublisher } from './hooks/usePresencePublisher';
 import { useStudyTimer } from './hooks/useStudyTimer';
 import { normalizeRoomCode } from './lib/code';
 import { newProfile } from './lib/profile';
+import { autoMessageText, toneOf, type AutoKind } from './lib/messages';
 import { formatDuration } from './lib/time';
 import type { AuthUser, Room, UserProfile } from './types';
 
@@ -111,7 +112,22 @@ function Main({
 
   useEffect(() => backend.watchMyRooms(profile.uid, setRooms), [backend, profile.uid]);
 
-  usePresencePublisher(backend, profile, rooms ?? [], timer);
+  // 入っている部屋（同時に入れるのは 1 つ）
+  const current = rooms?.find((r) => r.id === roomId) ?? rooms?.[0] ?? null;
+  usePresencePublisher(backend, profile, current?.id ?? null, timer);
+
+  /** スタート・休憩・ストップの自動メッセージを、入っている部屋に流す */
+  const sendAuto = (kind: AutoKind, category: string, durationSec = 0) => {
+    if (!current) return;
+    backend
+      .sendMessage(current.id, {
+        senderId: profile.uid,
+        kind,
+        text: autoMessageText(toneOf(profile), kind, category, durationSec),
+        createdAt: Date.now(),
+      })
+      .catch((e) => console.warn('message', e));
+  };
 
   const toastTimer = useRef(0);
   const showToast = useCallback((msg: string) => {
@@ -146,7 +162,16 @@ function Main({
       .catch((e) => showToast(e instanceof Error ? e.message : String(e)));
   }, [join, showToast]);
 
-  const current = rooms?.find((r) => r.id === roomId) ?? rooms?.[0] ?? null;
+  const handleStart = (category: string) => {
+    start(category);
+    sendAuto('auto-start', category);
+  };
+
+  const handlePause = () => {
+    if (!timer?.segmentStartedAt) return;
+    pause();
+    sendAuto('auto-break', timer.category);
+  };
 
   const handleStop = async () => {
     const result = stop();
@@ -158,6 +183,7 @@ function Main({
     try {
       await backend.addSession(profile.uid, { ...result, source: 'manual' });
       setSessionVersion((v) => v + 1);
+      sendAuto('auto-stop', result.category, result.durationSec);
       showToast(`${result.category} ${formatDuration(result.durationSec)} を記録しました`);
     } catch (e) {
       console.error(e);
@@ -231,7 +257,7 @@ function Main({
               onCancel={current ? () => setAddingRoom(false) : undefined}
             />
           ) : (
-            <RoomView backend={backend} room={current} myUid={profile.uid} />
+            <RoomView backend={backend} room={current} profile={profile} />
           ))}
         {tab === 'stats' && <Stats backend={backend} profile={profile} version={sessionVersion} />}
         {tab === 'settings' && (
@@ -249,8 +275,8 @@ function Main({
         <TimerBar
           categories={profile.categories}
           timer={timer}
-          onStart={start}
-          onPause={pause}
+          onStart={handleStart}
+          onPause={handlePause}
           onResume={resume}
           onStop={handleStop}
           onChangeCategory={changeCategory}

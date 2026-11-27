@@ -25,12 +25,19 @@ export interface DeskSet {
   arm: string;
 }
 
+/** 自動メッセージの口調 */
+export type Tone = 'plain' | 'cat' | 'casual' | 'genki';
+
 export interface UserProfile {
   uid: string;
   displayName: string;
   avatar: Avatar;
   /** 自分が使う分野の一覧（初期値は DEFAULT_CATEGORIES） */
   categories: string[];
+  /** スタンプのマイセット（無ければ DEFAULT_STAMPS） */
+  stamps?: string[];
+  /** 自動メッセージの口調（無ければ 'plain'） */
+  tone?: Tone;
 }
 
 export interface AuthUser {
@@ -69,6 +76,18 @@ export interface StudySession {
   endedAt: number;
   durationSec: number;
   source: 'manual' | 'camera';
+}
+
+export type MessageKind = 'stamp' | 'auto-start' | 'auto-break' | 'auto-stop';
+
+/** rooms/{roomId}/messages/{id}：部屋の中を流れるスタンプと自動メッセージ */
+export interface RoomMessage {
+  id: string;
+  senderId: string;
+  kind: MessageKind;
+  /** 送った時点の文章（組み立て済み） */
+  text: string;
+  createdAt: number;
 }
 
 export type Unsubscribe = () => void;

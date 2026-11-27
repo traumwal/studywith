@@ -10,7 +10,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 
 let env: RulesTestEnvironment;
 const db = (uid: string) => env.authenticatedContext(uid).firestore();
@@ -62,6 +62,44 @@ describe('rooms', () => {
 
   it('2人を超えては参加できない', async () => {
     await assertFails(updateDoc(doc(db('carol'), 'rooms/ROOM01'), { memberIds: arrayUnion('carol') }));
+  });
+});
+
+describe('messages', () => {
+  const msg = (senderId: string, extra: Record<string, unknown> = {}) => ({
+    senderId,
+    kind: 'stamp',
+    text: 'おつかれ',
+    createdAt: Date.now(),
+    ...extra,
+  });
+
+  it('メンバーは自分の名前でだけ送れて、読める', async () => {
+    await assertSucceeds(addDoc(collection(db('alice'), 'rooms/ROOM01/messages'), msg('alice')));
+    await assertSucceeds(addDoc(collection(db('alice'), 'rooms/ROOM01/messages'), msg('alice', { kind: 'auto-stop', text: '英語 50分 終わった' })));
+    await assertSucceeds(getDocs(collection(db('bob'), 'rooms/ROOM01/messages')));
+    await assertFails(addDoc(collection(db('alice'), 'rooms/ROOM01/messages'), msg('bob')));
+  });
+
+  it('メンバー以外は読めず、送れない', async () => {
+    await assertFails(getDocs(collection(db('carol'), 'rooms/ROOM01/messages')));
+    await assertFails(addDoc(collection(db('carol'), 'rooms/ROOM01/messages'), msg('carol')));
+  });
+
+  it('文字数・種類・時刻・余分な項目を検証する', async () => {
+    const add = (data: Record<string, unknown>) => addDoc(collection(db('alice'), 'rooms/ROOM01/messages'), data);
+    await assertSucceeds(add(msg('alice', { text: 'あ'.repeat(40) })));
+    await assertFails(add(msg('alice', { text: 'あ'.repeat(41) })));
+    await assertFails(add(msg('alice', { text: '' })));
+    await assertFails(add(msg('alice', { kind: 'chat' })));
+    await assertFails(add(msg('alice', { createdAt: Date.now() - 10 * 60 * 1000 })));
+    await assertFails(add(msg('alice', { extra: 1 })));
+  });
+
+  it('送ったものは変更・削除できない', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'rooms/ROOM01/messages/m1'), msg('alice')));
+    await assertFails(updateDoc(doc(db('alice'), 'rooms/ROOM01/messages/m1'), { text: '書き換え' }));
+    await assertFails(deleteDoc(doc(db('alice'), 'rooms/ROOM01/messages/m1')));
   });
 });
 
