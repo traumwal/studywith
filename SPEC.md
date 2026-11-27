@@ -163,7 +163,7 @@
 | ID | 口調 | スタート | 休憩 | ストップ |
 |---|---|---|---|---|
 | `plain` | ふつう（既定） | `{分野} 開始` | `ちょっと休憩` | `{分野} {時間} 終わった` |
-| `polite` | ていねい | `{分野}を始めます` | `少し休憩します` | `{分野} {時間} 終わりました` |
+| `cat` | ねこ | `{分野} するにゃ` | `ひと休みにゃ` | `{分野} {時間} できたにゃ` |
 | `casual` | ゆるい | `{分野}やるか〜` | `ちょっと休憩〜` | `{分野} {時間} おわり〜` |
 | `genki` | 元気 | `{分野} スタート！` | `休憩タイム！` | `{分野} {時間} やりきった！` |
 
@@ -212,7 +212,7 @@ avatar = { hair: "short" | "long" | "bun" | "spiky", hairColor, outfitColor, ski
 status = "studying" | "break" | "away" | "offline"
 kind   = "stamp" | "auto-start" | "auto-break" | "auto-stop"
 stamps = string[]                   ※ マイセット。無ければ初期セット（おつかれ / がんばれ / 休憩しよ / おやすみ）
-tone   = "plain" | "polite" | "casual" | "genki"   ※ 自動メッセージの口調。無ければ "plain"
+tone   = "plain" | "cat" | "casual" | "genki"   ※ 自動メッセージの口調。無ければ "plain"
 expireAt = Firestore の Timestamp 型   ※ ここだけ数値ではない（TTL で消すための決まり）。endedAt の 2 日後
 ```
 
@@ -274,7 +274,7 @@ gcloud firestore fields ttls update expireAt --collection-group=timeline --enabl
 | スタンプの初期セット | おつかれ / がんばれ / 休憩しよ / おやすみ | `src/constants.ts`（予定） |
 | スタンプの文字数 | 40 文字まで | `src/constants.ts`（予定）と `firestore.rules` |
 | マイセットの数 | 最大 8 個 | `src/constants.ts`（予定） |
-| 自動メッセージ | 固定の文章。口調はふつう / ていねい / ゆるい / 元気 の 4 種 | `src/constants.ts`（予定） |
+| 自動メッセージ | 固定の文章。口調はふつう / ねこ / ゆるい / 元気 の 4 種 | `src/constants.ts`（予定） |
 | タイムラインの保存期間 | 2 日（TTL で自動削除） | `expireAt` と TTL ポリシー |
 
 ### 未決定
