@@ -13,6 +13,8 @@ export interface ActiveTimer {
   segmentStartedAt: number | null;
   /** ポモドーロで始めたときだけ */
   pomodoro?: PomodoroState;
+  /** カメラが「離席」と判定して一時停止したとき（手動の休憩と区別する） */
+  pausedBy?: 'camera';
 }
 
 export interface FinishedTimer {
@@ -91,22 +93,31 @@ export function useStudyTimer(uid: string, onPomodoro?: (events: PomodoroEvent[]
     [setTimer],
   );
 
-  const pause = useCallback(() => {
-    if (!timer || !timer.segmentStartedAt) return;
-    const now = Date.now();
-    setTimer({
-      ...timer,
-      accumulatedSec: elapsedSec(timer, now),
-      segmentStartedAt: null,
-      ...(timer.pomodoro ? { pomodoro: pausePomodoro(timer.pomodoro, now) } : {}),
-    });
-  }, [timer, setTimer]);
+  /**
+   * 一時停止。カメラの離席は、最後に顔が見えた時刻（at）までを勉強時間にする
+   * （いなかった 3 分間を数えないように）
+   */
+  const pause = useCallback(
+    (opts?: { by?: 'camera'; at?: number }) => {
+      if (!timer || !timer.segmentStartedAt) return;
+      const at = Math.max(timer.segmentStartedAt, Math.min(Date.now(), opts?.at ?? Date.now()));
+      setTimer({
+        ...timer,
+        accumulatedSec: elapsedSec(timer, at),
+        segmentStartedAt: null,
+        ...(timer.pomodoro ? { pomodoro: pausePomodoro(timer.pomodoro, at) } : {}),
+        ...(opts?.by ? { pausedBy: opts.by } : {}),
+      });
+    },
+    [timer, setTimer],
+  );
 
   const resume = useCallback(() => {
     if (!timer || timer.segmentStartedAt) return;
     const now = Date.now();
+    const { pausedBy: _, ...rest } = timer;
     setTimer({
-      ...timer,
+      ...rest,
       segmentStartedAt: now,
       ...(timer.pomodoro ? { pomodoro: resumePomodoro(timer.pomodoro, now) } : {}),
     });

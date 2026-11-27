@@ -9,6 +9,7 @@ import { Stats } from './components/Stats';
 import { TimerBar } from './components/TimerBar';
 import { MIN_SESSION_SEC, POMODORO_MESSAGE_FRESH_MS, type PomodoroPresetId } from './constants';
 import { usePresencePublisher } from './hooks/usePresencePublisher';
+import { useCameraPresence } from './hooks/useCameraPresence';
 import { useStudyTimer } from './hooks/useStudyTimer';
 import { normalizeRoomCode } from './lib/code';
 import { newProfile } from './lib/profile';
@@ -19,6 +20,7 @@ import type { AuthUser, Room, UserProfile } from './types';
 
 const PENDING_JOIN_KEY = 'studyroom:v1:pendingJoin';
 const CURRENT_ROOM_KEY = 'studyroom:v1:currentRoom';
+const CAMERA_KEY = 'studyroom:v1:camera';
 
 // 招待リンク (?join=CODE) で開かれたら、ログイン後に参加できるよう覚えておく
 {
@@ -168,6 +170,31 @@ function Main({
       .catch((e) => showToast(e instanceof Error ? e.message : String(e)));
   }, [join, showToast]);
 
+  // ───── カメラの在席判定 ─────
+  // 顔が見えなくなって 3 分たったら一時停止（離席）、戻ってきたら自動で再開する。
+  // 手動の休憩やポモドーロの休憩中は触らない
+  const [cameraOn, setCameraOn] = useState(() => localStorage.getItem(CAMERA_KEY) === 'on');
+  const camera = useCameraPresence(cameraOn);
+  const toggleCamera = (on: boolean) => {
+    setCameraOn(on);
+    localStorage.setItem(CAMERA_KEY, on ? 'on' : 'off');
+  };
+  useEffect(() => {
+    if (camera.status === 'error') {
+      showToast(camera.error);
+      toggleCamera(false);
+    }
+  }, [camera.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!timer) return;
+    if (camera.status === 'on' && !camera.present && timer.segmentStartedAt) {
+      pause({ by: 'camera', at: camera.lastSeenAt ?? undefined });
+    } else if (timer.pausedBy === 'camera' && camera.present) {
+      // 戻ってきた（またはカメラを切った）ら再開
+      resume();
+    }
+  }, [camera.status, camera.present, camera.lastSeenAt, timer, pause, resume]);
+
   const handleStart = (category: string, pomodoro?: PomodoroPresetId) => {
     start(category, pomodoro);
     sendAuto('auto-start', category);
@@ -187,7 +214,7 @@ function Main({
       return;
     }
     try {
-      await saveSession(backend, profile.uid, current?.id ?? null, { ...result, source: 'manual' });
+      await saveSession(backend, profile.uid, current?.id ?? null, { ...result, source: camera.status === 'on' ? 'camera' : 'manual' });
       setSessionVersion((v) => v + 1);
       sendAuto('auto-stop', result.category, result.durationSec);
       showToast(`${result.category} ${formatDuration(result.durationSec)} を記録しました`);
@@ -286,6 +313,7 @@ function Main({
           onResume={resume}
           onStop={handleStop}
           onChangeCategory={changeCategory}
+          camera={{ ...camera, enabled: cameraOn, onToggle: toggleCamera }}
         />
       </footer>
 

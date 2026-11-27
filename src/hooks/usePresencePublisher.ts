@@ -19,7 +19,8 @@ export function usePresencePublisher(
     uid: profile.uid,
     displayName: profile.displayName,
     avatar: profile.avatar,
-    status: timer ? (timer.segmentStartedAt ? 'studying' : 'break') : 'away',
+    // カメラが離席と判定して止めたときは、休憩ではなく「離席中」（空席）にする
+    status: timer ? (timer.segmentStartedAt ? 'studying' : timer.pausedBy === 'camera' ? 'away' : 'break') : 'away',
     category: timer?.category ?? null,
     startedAt: timer?.segmentStartedAt ?? null,
     accumulatedSec: timer ? Math.round(timer.accumulatedSec) : 0,

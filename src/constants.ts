@@ -49,6 +49,22 @@ export const POMODORO_PRESETS: { id: PomodoroPresetId; label: string; focusMin: 
 /** 閉じている間に切り替わった場合、自動メッセージはこれより新しい切り替えのときだけ流す */
 export const POMODORO_MESSAGE_FRESH_MS = 2 * 60 * 1000;
 
+// ───── カメラの在席判定 ─────
+
+/** 顔検出の間隔（毎フレームは行わない） */
+export const CAMERA_DETECT_INTERVAL_MS = 2000;
+/** 顔がこれだけ見えなければ「離席」にして、タイマーを一時停止する */
+export const CAMERA_AWAY_MS = 3 * 60 * 1000;
+/** 離席のあと、顔がこの回数続けて見えたら戻ったとみなす（一瞬の誤検出で戻らないように） */
+export const CAMERA_RESUME_STREAK = 2;
+/**
+ * 顔とみなす確からしさ。正面の顔はふつう 0.9 以上。模様やポスターの誤検出（0.5〜0.75 程度）を拾わないよう高めにする。
+ * 下を向いて書いている間に下回っても、3 分のうちに 1 回でも見えれば離席にはならない
+ */
+export const CAMERA_MIN_CONFIDENCE = 0.8;
+/** カメラは低い解像度で取得する */
+export const CAMERA_SIZE = { width: 320, height: 240 };
+
 // ───── タイムライン ─────
 
 /** タイムラインの共有コピーを残す期間（Firestore の TTL で消す。firestore.rules と合わせる） */
