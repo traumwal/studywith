@@ -58,7 +58,8 @@ service cloud.firestore {
         allow delete: if isMe(uid);
       }
 
-      // スタンプ・自動メッセージ。メンバーだけが読み書きでき、送ったものは変更・削除できない
+      // スタンプ・自動メッセージ。メンバーだけが読み書きでき、送ったものは変更できない。
+      // 2 日より前のものは、部屋を開いたメンバーのアプリが消す（無料プランでは TTL が使えないため）
       match /messages/{messageId} {
         function validMessage(d) {
           return d.keys().hasOnly(['senderId', 'kind', 'text', 'createdAt'])
@@ -73,13 +74,15 @@ service cloud.firestore {
         }
         allow read: if isMember();
         allow create: if isMember() && validMessage(request.resource.data);
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if isMember()
+          && resource.data.createdAt <= request.time.toMillis() - 2 * 24 * 60 * 60 * 1000;   // MESSAGE_KEEP_MS
       }
 
-      // タイムライン用の共有コピー（分野と開始・終了時刻だけ）。2 日後に TTL で消える
+      // タイムライン用の共有コピー（分野と開始・終了時刻だけ）。記録を消すと一緒に消える
       match /timeline/{entryId} {
         function validEntry(d) {
-          return d.keys().hasOnly(['userId', 'category', 'startedAt', 'endedAt', 'expireAt'])
+          return d.keys().hasOnly(['userId', 'category', 'startedAt', 'endedAt'])
             && d.userId == request.auth.uid
             && d.category is string
             && d.category.size() > 0
@@ -87,9 +90,7 @@ service cloud.firestore {
             && d.startedAt is number
             && d.endedAt is number
             && d.endedAt > d.startedAt
-            && d.endedAt < request.time.toMillis() + 60 * 1000
-            && d.expireAt is timestamp
-            && d.expireAt.toMillis() == d.endedAt + 2 * 24 * 60 * 60 * 1000;   // TIMELINE_KEEP_MS
+            && d.endedAt < request.time.toMillis() + 60 * 1000;
         }
         allow read: if isMember();
         allow create: if isMember() && validEntry(request.resource.data);

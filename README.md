@@ -24,9 +24,9 @@
 - 空と部屋の明るさが、見ている人の現地時刻に合わせて昼・夕方・夜に変わる（夜は勉強中の人のライトだけが灯る）
 - **スタンプ**：部屋の下のボタンで定型文を送ると、部屋の空を右から左へ流れる（音・通知なし）。定型文は設定の「マイセット」で最大 8 個まで編集
 - **自動メッセージ**：スタート・休憩・ストップのときに固定の文章が流れる（例：`英語 50分 終わった`）。口調は ふつう / ねこ / ゆるい / 元気 から選ぶ
-- **LOG**：部屋の脇の `LOG` で、流れたスタンプと自動メッセージを新しい順に 50 件まで見られる（開く前に流れたものもここで見る）
+- **LOG**：部屋の脇の `LOG` で、流れたスタンプと自動メッセージを新しい順に 50 件まで見られる（開く前に流れたものもここで見る）。**2 日より前のものは自動で消える**（無料プランで動くよう、部屋を開いた人のアプリが消す）
 - 同時に入れる部屋は 1 つ（ヘッダーで選んでいる部屋）。切り替えると前の部屋ではオフラインになる
-- **タイムライン**：記録画面の上に「今日（6 時〜翌 6 時）」の帯グラフ。自分と相手の勉強した時間帯と、2 人の時間が重なった部分を並べる。相手に共有するのは分野と時刻だけで、2 日後に自動で消える
+- **タイムライン**：記録画面の上に「今日（6 時〜翌 6 時）」の帯グラフ。自分と相手の勉強した時間帯と、2 人の時間が重なった部分を並べる。相手に共有するのは分野と時刻だけ
 
 ## 動かし方
 
@@ -67,8 +67,6 @@ npm run build
 firebase deploy               # firestore.rules と dist/ をデプロイ
 ```
 
-`firebase deploy` で、タイムラインを 2 日で消す TTL の設定（`firestore.indexes.json`）も一緒に反映されます。
-
 デプロイした URL を友達に送れば、インストールなしで使えます（Vercel などでも可。その場合も `firestore.rules` は `firebase deploy --only firestore` で反映してください）。
 
 ## 自動で公開する（GitHub Actions）
@@ -76,7 +74,7 @@ firebase deploy               # firestore.rules と dist/ をデプロイ
 `.github/workflows/deploy.yml` で、次のように動きます。
 
 - プッシュ・プルリクエストのたびに：型チェック・テスト・ルールのテスト・ビルド
-- **既定のブランチに入ったとき（プルリクエストをマージしたとき）**：テストが通ったら `firebase deploy --only hosting,firestore` で公開（画面・Firestore のルール・TTL の設定）
+- **既定のブランチに入ったとき（プルリクエストをマージしたとき）**：テストが通ったら `firebase deploy --only hosting,firestore` で公開（画面と Firestore のルール）
 
 公開には、Firebase に公開してよい「鍵」（サービスアカウントの鍵）を、GitHub に 1 回だけ登録します。
 
@@ -99,8 +97,8 @@ Firestore はコレクションとドキュメントが交互になるため、�
 ```
 rooms/{roomId}                      name, createdAt, memberIds[]      ※ roomId = 招待コード
 rooms/{roomId}/messages/{id}        senderId, kind, text, createdAt   ※ スタンプ・自動メッセージ
-rooms/{roomId}/timeline/{id}        userId, category, startedAt, endedAt, expireAt
-                                    ※ タイムライン用の共有コピー（id は記録と同じ・expireAt は Timestamp で 2 日後に TTL で削除）
+rooms/{roomId}/timeline/{id}        userId, category, startedAt, endedAt
+                                    ※ タイムライン用の共有コピー（id は記録と同じ。記録を消すと一緒に消える）
 rooms/{roomId}/presence/{userId}    status, category, startedAt, accumulatedSec, updatedAt,
                                     displayName, avatar               ※ 部屋の描画に必要な分だけ複製
 users/{userId}                      displayName, avatar{hair, hairColor, outfitColor, skin, desk}, categories[], stamps[], tone
@@ -109,7 +107,7 @@ users/{userId}/sessions/{id}        category, startedAt, endedAt, durationSec, s
 
 - 時刻はすべてミリ秒の数値
 - `accumulatedSec`：休憩をはさんだときの、それまでの勉強秒数（相手側で経過時間を計算するため）
-- ルール（`firestore.rules`）：部屋と在席情報・メッセージはメンバーだけが読める。参加は「自分を追加」（最大 2 人）、退出は「自分を削除」だけ許可。メッセージは自分の名前で 40 文字まで送れて、変更・削除はできない。タイムラインは自分の分だけ置けて、削除も本人だけ。勉強記録は本人だけが読み書きできる
+- ルール（`firestore.rules`）：部屋と在席情報・メッセージはメンバーだけが読める。参加は「自分を追加」（最大 2 人）、退出は「自分を削除」だけ許可。メッセージは自分の名前で 40 文字まで送れて、変更はできない（2 日より前のものはメンバーなら消せる）。タイムラインは自分の分だけ置けて、削除も本人だけ。勉強記録は本人だけが読み書きできる
 
 ## 軽さのための工夫（仕様 7.）
 

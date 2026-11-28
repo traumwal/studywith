@@ -132,7 +132,7 @@ export function Timeline({ backend, room, profile }: { backend: Backend; room: R
       <p className="hint tl-detail">
         {detail ??
           (partnerId
-            ? 'バーに触れると、分野と時刻が出ます。共有されるのは分野と時刻だけで、2日後に消えます。'
+            ? 'バーに触れると、分野と時刻が出ます。相手に共有されるのは分野と時刻だけです。'
             : '友達が部屋に入ると、ここに2人の時間が並びます。')}
       </p>
     </div>

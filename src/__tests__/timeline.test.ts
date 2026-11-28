@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { Backend } from '../backend';
-import { TIMELINE_KEEP_MS } from '../constants';
 import { removeSession, saveSession } from '../lib/record';
 import { clip, intersect, timelineWindow, totalMs, union } from '../lib/timeline';
 import type { StudySession, TimelineEntry } from '../types';
@@ -71,12 +70,11 @@ describe('saving and deleting records', () => {
     expect(timeline.size).toBe(0);
   });
 
-  it('does not copy records older than 2 days or when not in a room', async () => {
+  it('copies older records too (the timeline is kept), but not when not in a room', async () => {
     const { backend, sessions, timeline } = fakeBackend();
-    await saveSession(backend, 'u1', 'ROOM01', session(Date.now() - TIMELINE_KEEP_MS - MIN));
+    await saveSession(backend, 'u1', 'ROOM01', session(Date.now() - 5 * 24 * 60 * MIN));
     await saveSession(backend, 'u1', null, session(Date.now()));
-    expect(sessions).toHaveLength(2);
-    expect(sessions.every((s) => s.roomId === undefined)).toBe(true);
-    expect(timeline.size).toBe(0);
+    expect(sessions.map((s) => s.roomId)).toEqual(['ROOM01', undefined]);
+    expect(timeline.size).toBe(1);
   });
 });

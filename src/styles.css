@@ -227,6 +227,7 @@ code { font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; }
 .log-name { flex: none; color: var(--muted); max-width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .log-text { min-width: 0; overflow-wrap: anywhere; }
 .log-list li.auto .log-text { color: var(--muted); }
+.log-note { margin: 8px 0 0; font-size: 0.75rem; text-align: right; }
 
 .stamp-editor { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .stamp-editor .chip.removable { gap: 2px; padding-left: 4px; }
