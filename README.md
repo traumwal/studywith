@@ -17,7 +17,6 @@
   - オフライン（閉じている・5 分以上更新なし）→ 机で寝ている
   - 頭の上に「分野名＋経過時間」（例：`TOEIC 45分`）
 - **手動のスタート / 休憩 / ストップ**：分野を選んでスタート。休憩時間は記録に含めない。リロードしてもタイマーは続く。1 分未満は保存しない
-- **カメラの在席判定（任意）**：下のバーの「📷 カメラ」をオンにすると、顔が 3 分見えないときに自動で一時停止して「離席中」になり、戻ると再開する。いなかった時間は記録に入らない。映像は端末の中で顔があるかを調べるだけで、送信も保存もしない
 - **ポモドーロ**：スタート前に「25分＋5分」「50分＋10分」を選ぶと、集中と休憩が自動で切り替わる（4 回目ごとに長い休憩）。休憩中はアバターも休憩の姿に
 - **時間記録と集計**：週ごとの合計・前週比・日別（分野で色分け）・分野別。記録の削除、つけ忘れの手動追加
 - 分野の追加・削除（初期値：学校課題 / CG / 英語 / TOEIC / 基本情報 / paiza / アプリ開発 / 映画 / イラスト）
@@ -102,7 +101,7 @@ rooms/{roomId}/timeline/{id}        userId, category, startedAt, endedAt
 rooms/{roomId}/presence/{userId}    status, category, startedAt, accumulatedSec, updatedAt,
                                     displayName, avatar               ※ 部屋の描画に必要な分だけ複製
 users/{userId}                      displayName, avatar{hair, hairColor, outfitColor, skin, desk}, categories[], stamps[], tone
-users/{userId}/sessions/{id}        category, startedAt, endedAt, durationSec, source: "manual" | "camera", roomId?
+users/{userId}/sessions/{id}        category, startedAt, endedAt, durationSec, source: "manual" | "camera"（旧データのみ）, roomId?
 ```
 
 - 時刻はすべてミリ秒の数値
@@ -127,10 +126,6 @@ src/
   lib/messages.ts           自動メッセージの文章・スタンプの初期値など
   lib/timeline.ts           タイムラインの 1 日の枠・2 人の重なりの計算
   lib/pomodoro.ts           ポモドーロの集中 ⇔ 休憩の切り替え（閉じていた間の追いつきも）
-  lib/camera.ts             カメラの顔検出の結果から「いる / いない」を決める
-  lib/blockTelemetry.ts     MediaPipe の利用統計の送信を止める
-  hooks/useCameraPresence.ts  カメラと顔検出（MediaPipe はオンにしたときだけ読み込む）
-public/models/              顔検出のモデル（MediaPipe の blaze_face_short_range、Apache-2.0）
   lib/record.ts             記録の保存・削除（タイムラインへのコピーも一緒に）
   hooks/useStudyTimer.ts    タイマー（localStorage に保持）
   hooks/usePresencePublisher.ts  自分の状態を入っている部屋（1 つ）へ送信

@@ -75,6 +75,7 @@ export interface StudySession {
   startedAt: number;
   endedAt: number;
   durationSec: number;
+  /** 'camera' はカメラの在席判定があった頃の記録（今は使っていない） */
   source: 'manual' | 'camera';
   /** タイムラインにコピーした部屋（削除するときに一緒に消すため） */
   roomId?: string;

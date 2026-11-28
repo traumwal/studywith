@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
-import type { CameraStatus } from '../hooks/useCameraPresence';
+import { useEffect, useState } from 'react';
 import { POMODORO_PRESETS, type PomodoroPresetId } from '../constants';
 import { categoryColor } from '../lib/color';
 import { isLongBreak, pomodoroRemainingMs, presetOf } from '../lib/pomodoro';
@@ -14,40 +13,6 @@ interface Props {
   onResume: () => void;
   onStop: () => void;
   onChangeCategory: (category: string) => void;
-  camera: CameraProps;
-}
-
-interface CameraProps {
-  enabled: boolean;
-  status: CameraStatus;
-  present: boolean;
-  stream: MediaStream | null;
-  onToggle: (on: boolean) => void;
-}
-
-/** カメラの在席判定のスイッチと小さなプレビュー（映像は画面に映すだけで送信しない） */
-function CameraToggle({ camera }: { camera: CameraProps }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  useEffect(() => {
-    if (videoRef.current) videoRef.current.srcObject = camera.stream;
-  }, [camera.stream]);
-  const label =
-    camera.status === 'starting' ? '準備中…' : camera.status === 'on' ? (camera.present ? '在席' : '顔が見えません') : 'カメラ';
-  return (
-    <button
-      type="button"
-      className={`camera-toggle ${camera.enabled ? 'on' : ''} ${camera.status === 'on' && !camera.present ? 'absent' : ''}`}
-      aria-pressed={camera.enabled}
-      title="カメラは在席判定にだけ使い、映像は送信しません"
-      onClick={() => camera.onToggle(!camera.enabled)}
-    >
-      {camera.stream ? <video ref={videoRef} className="camera-preview" muted playsInline autoPlay /> : <span aria-hidden>📷</span>}
-      <span className="camera-label">
-        {label}
-        {camera.enabled && <small>映像は送信しません</small>}
-      </span>
-    </button>
-  );
 }
 
 const LAST_CATEGORY_KEY = 'studyroom:v1:lastCategory';
@@ -62,7 +27,7 @@ function mmss(ms: number) {
 const FORGOT_STOP_SEC = 6 * 60 * 60;
 
 /** 分野を選んでスタート / 休憩 / ストップ */
-export function TimerBar({ categories, timer, onStart, onPause, onResume, onStop, onChangeCategory, camera }: Props) {
+export function TimerBar({ categories, timer, onStart, onPause, onResume, onStop, onChangeCategory }: Props) {
   const now = useNow(1000, !!timer);
   const [category, setCategory] = useState(() => {
     const last = localStorage.getItem(LAST_CATEGORY_KEY);
@@ -136,7 +101,6 @@ export function TimerBar({ categories, timer, onStart, onPause, onResume, onStop
             </button>
           ))}
         </div>
-        <CameraToggle camera={camera} />
         <button
           className="btn primary big"
           disabled={!category}
@@ -168,9 +132,7 @@ export function TimerBar({ categories, timer, onStart, onPause, onResume, onStop
         <span className="clock" aria-live="off">
           {formatClock(elapsed)}
         </span>
-        {timer.pausedBy === 'camera' ? (
-          <span className="state away">離席中（カメラ）・戻ると再開</span>
-        ) : pomo ? (
+        {pomo ? (
           <span className={`pomo ${pomo.phase}`}>
             <span className="pomo-dots" aria-label={`${presetOf(pomo.preset).every}回のうち${((pomo.round - 1) % presetOf(pomo.preset).every) + 1}回目`}>
               {Array.from({ length: presetOf(pomo.preset).every }, (_, i) => (
@@ -185,7 +147,6 @@ export function TimerBar({ categories, timer, onStart, onPause, onResume, onStop
       </div>
       {elapsed > FORGOT_STOP_SEC && <p className="warn">ストップし忘れていませんか？</p>}
       <div className="row">
-        <CameraToggle camera={camera} />
         {running ? (
           <button className="btn" onClick={onPause}>
             ☕ 休憩

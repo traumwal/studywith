@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Backend } from '../backend';
-import { CAMERA_AWAY_MS, DEFAULT_CATEGORIES, DEFAULT_STAMPS, MAX_MESSAGE_LEN, MAX_STAMPS, TONES } from '../constants';
+import { DEFAULT_CATEGORIES, DEFAULT_STAMPS, MAX_MESSAGE_LEN, MAX_STAMPS, TONES } from '../constants';
 import { autoMessageText, clampText, stampsOf, toneOf } from '../lib/messages';
 import type { Room, UserProfile } from '../types';
 import { ProfileEditor } from './ProfileEditor';
@@ -153,18 +153,6 @@ export function Settings({ backend, profile, rooms, onSaveProfile, onLeaveRoom }
             </button>
           ))}
         </div>
-      </section>
-
-      <section className="card">
-        <h3>カメラ（在席判定）</h3>
-        <p className="hint">
-          下のバーの「📷 カメラ」をオンにすると、勉強中に顔が{CAMERA_AWAY_MS / 60000}分見えなかったときに自動で一時停止して「離席中」になり、戻ってくると自動で再開します。
-          いなかった時間は勉強時間に入りません。
-        </p>
-        <p className="notice">
-          カメラは在席判定にだけ使い、<strong>映像は送信も保存もしません</strong>。顔が映っているかどうかをこの端末の中だけで判定し、友達に伝わるのは「勉強中・離席中」などの状態だけです。
-          使わない場合はオフのままで、手動のボタンだけで使えます。
-        </p>
       </section>
 
       <section className="card">

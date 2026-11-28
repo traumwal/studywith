@@ -258,15 +258,3 @@ code { font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; }
 .tl-tick { position: absolute; transform: translateX(-50%); font-size: 0.7rem; color: var(--muted); font-family: ui-monospace, Menlo, monospace; }
 .tl-detail { min-height: 1.4em; margin-top: 8px; }
 
-/* ───── カメラ ───── */
-.camera-toggle {
-  display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 3px 10px 3px 4px; min-height: 36px;
-  border: 1px solid var(--line); background: var(--bg-2); color: var(--muted); border-radius: 10px; font: inherit; font-size: 0.8rem; cursor: pointer;
-}
-.camera-toggle > span[aria-hidden] { width: 32px; text-align: center; }
-.camera-toggle.on { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 60%, var(--line)); }
-.camera-toggle.absent { color: var(--accent); border-color: var(--accent); }
-.camera-preview { width: 40px; height: 30px; object-fit: cover; border-radius: 6px; transform: scaleX(-1); background: #000; }
-.camera-label { display: flex; flex-direction: column; line-height: 1.2; text-align: left; }
-.camera-label small { font-size: 0.65rem; color: var(--muted); }
-.state.away { color: var(--accent); }
