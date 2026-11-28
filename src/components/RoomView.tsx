@@ -55,6 +55,11 @@ export function RoomView({ backend, room, profile }: { backend: Backend; room: R
     });
   }, [backend, room.id, scheduler]);
 
+  // 2 日より前のスタンプ・自動メッセージを消す（無料プランでも動くよう、部屋を開いた人のアプリが掃除する）
+  useEffect(() => {
+    backend.purgeOldMessages(room.id).catch((e) => console.warn('purge', e));
+  }, [backend, room.id]);
+
   // ───── スタンプ ─────
   const [cooling, setCooling] = useState(false);
   const sendStamp = async (text: string) => {
@@ -115,7 +120,7 @@ export function RoomView({ backend, room, profile }: { backend: Backend; room: R
       {logOpen && (
         <section className="log card" aria-label="LOG">
           {log.length === 0 ? (
-            <p className="hint center">まだ何も流れていません</p>
+            <p className="hint center">この2日間は、まだ何も流れていません</p>
           ) : (
             <ol className="log-list">
               {log.map((m) => {
@@ -131,6 +136,7 @@ export function RoomView({ backend, room, profile }: { backend: Backend; room: R
               })}
             </ol>
           )}
+          <p className="hint log-note">2日より前のものは自動で消えます</p>
         </section>
       )}
 

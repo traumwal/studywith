@@ -80,7 +80,7 @@ export interface StudySession {
   roomId?: string;
 }
 
-/** rooms/{roomId}/timeline/{id}：タイムライン用の共有コピー（id は元の記録と同じ。2 日で消える） */
+/** rooms/{roomId}/timeline/{id}：タイムライン用の共有コピー（id は元の記録と同じ。記録を消すと一緒に消える） */
 export interface TimelineEntry {
   id: string;
   userId: string;

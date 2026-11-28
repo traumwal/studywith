@@ -1,4 +1,4 @@
-import { MAX_ROOM_MEMBERS, TIMELINE_KEEP_MS } from '../constants';
+import { MAX_ROOM_MEMBERS, MESSAGE_KEEP_MS } from '../constants';
 import { generateRoomCode, normalizeRoomCode } from '../lib/code';
 import type { AuthUser, Presence, Room, RoomMessage, StudySession, TimelineEntry, Unsubscribe, UserProfile } from '../types';
 import type { Backend, LocalAccount, SignInMethod } from './types';
@@ -177,7 +177,20 @@ export class LocalBackend implements Backend {
   }
 
   async listMessages(roomId: string, limit: number) {
-    return [...(read('messages', {})[roomId] ?? [])].sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);
+    const keepAfter = Date.now() - MESSAGE_KEEP_MS;
+    return (read('messages', {})[roomId] ?? [])
+      .filter((m) => m.createdAt > keepAfter)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, limit);
+  }
+
+  async purgeOldMessages(roomId: string) {
+    const all = read('messages', {});
+    const keepAfter = Date.now() - MESSAGE_KEEP_MS;
+    const kept = (all[roomId] ?? []).filter((m) => m.createdAt > keepAfter);
+    if (kept.length === (all[roomId] ?? []).length) return;
+    all[roomId] = kept;
+    this.write('messages', all);
   }
 
   async addSession(uid: string, session: Omit<StudySession, 'id'>) {
@@ -188,31 +201,21 @@ export class LocalBackend implements Backend {
     return id;
   }
 
-  /** 2 日より前のタイムラインを捨てる（Firebase の TTL の代わり） */
-  private freshTimeline() {
-    const keepAfter = Date.now() - TIMELINE_KEEP_MS;
-    const all = read('timeline', {});
-    for (const room of Object.values(all)) {
-      for (const [id, e] of Object.entries(room)) if (e.endedAt <= keepAfter) delete room[id];
-    }
-    return all;
-  }
-
   async addTimeline(roomId: string, entry: TimelineEntry) {
-    const all = this.freshTimeline();
+    const all = read('timeline', {});
     all[roomId] = { ...(all[roomId] ?? {}), [entry.id]: entry };
     this.write('timeline', all);
   }
 
   async deleteTimeline(roomId: string, id: string) {
-    const all = this.freshTimeline();
+    const all = read('timeline', {});
     if (all[roomId]) delete all[roomId][id];
     this.write('timeline', all);
   }
 
   watchTimeline(roomId: string, since: number, cb: (list: TimelineEntry[]) => void): Unsubscribe {
     return this.subscribe('timeline', () =>
-      cb(Object.values(this.freshTimeline()[roomId] ?? {}).filter((e) => e.endedAt > since)),
+      cb(Object.values(read('timeline', {})[roomId] ?? {}).filter((e) => e.endedAt > since)),
     );
   }
 

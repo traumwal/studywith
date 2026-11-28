@@ -1,5 +1,4 @@
 import type { Backend } from '../backend';
-import { TIMELINE_KEEP_MS } from '../constants';
 import type { StudySession } from '../types';
 
 /**
@@ -7,8 +6,7 @@ import type { StudySession } from '../types';
  * 記録そのもの（sessions）は本人だけが読めるまま。
  */
 export async function saveSession(backend: Backend, uid: string, roomId: string | null, session: Omit<StudySession, 'id' | 'roomId'>) {
-  // 2 日より前の記録（つけ忘れの手動追加など）は、すぐ消えるのでコピーしない
-  const share = roomId && session.endedAt > Date.now() - TIMELINE_KEEP_MS ? roomId : null;
+  const share = roomId;
   const id = await backend.addSession(uid, share ? { ...session, roomId: share } : session);
   if (share) {
     await backend

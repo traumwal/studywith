@@ -10,7 +10,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 
 let env: RulesTestEnvironment;
 const db = (uid: string) => env.authenticatedContext(uid).firestore();
@@ -96,10 +96,17 @@ describe('messages', () => {
     await assertFails(add(msg('alice', { extra: 1 })));
   });
 
-  it('送ったものは変更・削除できない', async () => {
+  it('送ったものは変更できず、2 日以内のものは消せない', async () => {
     await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'rooms/ROOM01/messages/m1'), msg('alice')));
     await assertFails(updateDoc(doc(db('alice'), 'rooms/ROOM01/messages/m1'), { text: '書き換え' }));
     await assertFails(deleteDoc(doc(db('alice'), 'rooms/ROOM01/messages/m1')));
+  });
+
+  it('2 日より前のものは、メンバーなら誰でも消せる（掃除用）', async () => {
+    const old = msg('alice', { createdAt: Date.now() - 2 * 24 * 60 * 60 * 1000 - 60 * 1000 });
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'rooms/ROOM01/messages/old'), old));
+    await assertFails(deleteDoc(doc(db('carol'), 'rooms/ROOM01/messages/old')));
+    await assertSucceeds(deleteDoc(doc(db('bob'), 'rooms/ROOM01/messages/old')));
   });
 });
 
@@ -107,7 +114,7 @@ describe('timeline', () => {
   const DAY = 24 * 60 * 60 * 1000;
   const entry = (userId: string, extra: Record<string, unknown> = {}) => {
     const endedAt = Date.now() - 60 * 1000;
-    return { userId, category: '英語', startedAt: endedAt - 50 * 60 * 1000, endedAt, expireAt: Timestamp.fromMillis(endedAt + 2 * DAY), ...extra };
+    return { userId, category: '英語', startedAt: endedAt - 50 * 60 * 1000, endedAt, ...extra };
   };
 
   it('メンバーは自分の分だけ置けて、相手の分も読める', async () => {
@@ -118,11 +125,11 @@ describe('timeline', () => {
     await assertFails(setDoc(doc(db('carol'), 'rooms/ROOM01/timeline/s3'), entry('carol')));
   });
 
-  it('消える時刻は終了の 2 日後でなければならない', async () => {
+  it('分野と時刻以外の項目や、おかしな時刻は置けない', async () => {
     const e = entry('alice');
-    await assertFails(setDoc(doc(db('alice'), 'rooms/ROOM01/timeline/s1'), { ...e, expireAt: Timestamp.fromMillis(e.endedAt + 30 * DAY) }));
-    await assertFails(setDoc(doc(db('alice'), 'rooms/ROOM01/timeline/s1'), { ...e, expireAt: e.endedAt + 2 * DAY }));
     await assertFails(setDoc(doc(db('alice'), 'rooms/ROOM01/timeline/s1'), { ...e, note: '余分' }));
+    await assertFails(setDoc(doc(db('alice'), 'rooms/ROOM01/timeline/s1'), { ...e, endedAt: e.startedAt - 1 }));
+    await assertFails(setDoc(doc(db('alice'), 'rooms/ROOM01/timeline/s1'), { ...e, endedAt: Date.now() + DAY }));
   });
 
   it('変更はできず、削除は本人だけ', async () => {
